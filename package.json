@@ -8,9 +8,18 @@
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest",
-    "chrome-types": "^0.1.312"
+    "autoprefixer": "^10.4.20",
+    "chrome-types": "^0.1.312",
+    "postcss": "^8.4.47",
+    "postcss-cli": "^11.0.0",
+    "postcss-import": "^16.1.0",
+    "tailwindcss": "^3.4.14"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^0.0.51",
+    "ai": "^3.4.18"
   }
 }
