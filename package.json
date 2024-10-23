@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "dev": "bun build.ts --watch",
+    "build": "bun build.ts"
+  },
+  "name": "web_copilot_ai",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "chrome-types": "^0.1.312"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
