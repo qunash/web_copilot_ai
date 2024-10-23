@@ -27,7 +27,7 @@ const getEntryPoints = () => {
 
     // Add sidepanel script (extracted from the HTML file)
     if (manifest.side_panel?.default_path) {
-        entryPoints.add(join(srcDir, 'sidepanel.ts'));
+        entryPoints.add(join(srcDir, 'index.tsx'));
     }
 
     return Array.from(entryPoints);
