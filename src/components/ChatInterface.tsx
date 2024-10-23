@@ -1,126 +1,18 @@
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText } from 'ai';
-import { useState, useRef, useEffect } from 'react';
+import { useChat } from '../hooks/useChat';
 
-const anthropicClient = createAnthropic({
-    apiKey: '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',
-    headers: {
-        'anthropic-dangerous-direct-browser-access': 'true'
-    }
-});
+export const ChatInterface = () => {
+    const {
+        messages,
+        isProcessing,
+        inputValue,
+        setInputValue,
+        sendMessage,
+        chatContainerRef
+    } = useChat();
 
-interface Message {
-    content: string;
-    isUser: boolean;
-    isError?: boolean;
-}
-
-interface DebugMessage {
-    content: string;
-    level: 'info' | 'warning' | 'error';
-    timestamp: string;
-}
-
-interface ChatInterfaceProps {
-    debug?: boolean;
-}
-
-export const ChatInterface = ({ debug = false }: ChatInterfaceProps) => {
-    const [messages, setMessages] = useState<Message[]>([
-        { content: "Hello! I'm your Web Copilot AI. How can I help you today?", isUser: false }
-    ]);
-    const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [inputValue, setInputValue] = useState('');
-    const chatContainerRef = useRef<HTMLDivElement>(null);
-    const model = anthropicClient('claude-3-haiku-20240307');
-
-    const scrollToBottom = () => {
-        if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages, debugMessages]);
-
-    const addDebugMessage = (message: any, level: 'info' | 'warning' | 'error' = 'info') => {
-        if (!debug) return;
-
-        const formattedMessage = typeof message === 'object' ?
-            JSON.stringify(message, null, 2) :
-            message;
-
-        setDebugMessages(prev => [...prev, {
-            content: formattedMessage,
-            level,
-            timestamp: new Date().toISOString()
-        }]);
-    };
-
-    const handleSend = async () => {
-        const message = inputValue.trim();
-        if (!message || isProcessing) return;
-
-        setInputValue('');
-        setMessages(prev => [...prev, { content: message, isUser: true }]);
-        setIsProcessing(true);
-
-        try {
-            setMessages(prev => [...prev, { content: '', isUser: false }]);
-
-            const result = await streamText({
-                model,
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are Web Copilot AI, a browser assistant that helps users perform actions in their browser. 
-                        You should analyze user requests and provide specific instructions about which browser actions would help accomplish their goals.
-                        You can assist with tasks like:
-                        - Navigation
-                        - Form filling
-                        - Content extraction
-                        - Tab management
-                        - Bookmark operations
-                        Always provide clear, step-by-step instructions for what actions need to be taken.`
-                    },
-                    {
-                        role: 'user',
-                        content: message
-                    }
-                ]
-            });
-
-            let fullResponse = '';
-
-            for await (const delta of result.textStream) {
-                fullResponse += delta;
-
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = {
-                        content: fullResponse,
-                        isUser: false
-                    };
-                    return newMessages;
-                });
-            }
-
-        } catch (error) {
-            console.error('Error generating response:', error);
-            addDebugMessage({
-                event: 'streamText_error',
-                error: error instanceof Error ? error.message : String(error)
-            }, 'error');
-            setMessages(prev => [...prev, {
-                content: 'Error: Unable to connect to AI service. Please check your API key and try again.',
-                isUser: false,
-                isError: true
-            }]);
-        } finally {
-            setIsProcessing(false);
-        }
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        sendMessage(inputValue.trim());
     };
 
     return (
@@ -137,31 +29,19 @@ export const ChatInterface = ({ debug = false }: ChatInterfaceProps) => {
                     <div
                         key={idx}
                         className={`p-3 rounded-lg max-w-[85%] break-words ${msg.isError
-                                ? 'bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100 ml-0'
-                                : msg.isUser
-                                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 ml-auto'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 mr-auto'
+                            ? 'bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100 ml-0'
+                            : msg.isUser
+                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 ml-auto'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 mr-auto'
                             }`}
                     >
                         {msg.content}
                     </div>
                 ))}
-
-                {debug && debugMessages.map((debug, idx) => (
-                    <div
-                        key={`debug-${idx}`}
-                        className={`debug-message ${debug.level} p-2 rounded-md mt-1 mb-1 w-full border border-gray-300 dark:border-gray-600`}
-                    >
-                        [DEBUG {debug.timestamp}] {debug.content}
-                    </div>
-                ))}
             </div>
 
             <form 
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSend();
-                }}
+                onSubmit={handleSubmit}
                 className="flex gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
                 <input
@@ -175,8 +55,7 @@ export const ChatInterface = ({ debug = false }: ChatInterfaceProps) => {
                 <button
                     type="submit"
                     disabled={isProcessing}
-                    className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors duration-200 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
+                    className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors duration-200 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     Send
                 </button>
