@@ -1,3 +1,5 @@
+import { handleChatRequest } from './services/chatService';
+
 // Configure the side panel to open when the action (extension icon) is clicked
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -35,5 +37,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Return true to indicate we will send a response asynchronously
     return true;
   }
+});
 
+// Add this new listener for fetch events
+self.addEventListener('fetch', (event: FetchEvent) => {
+  if (event.request.url.endsWith('/api/chat')) {
+    event.respondWith(handleChatRequest(event.request));
+  }
 });

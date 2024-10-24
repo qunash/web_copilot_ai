@@ -18,17 +18,10 @@ const getEntryPoints = () => {
         entryPoints.add(join(srcDir, manifest.background.service_worker));
     }
 
-    // Add content scripts
-    manifest.content_scripts?.forEach(script => {
-        script.js?.forEach(js => {
-            entryPoints.add(join(srcDir, js));
-        });
-    });
-
-    // Add sidepanel script (extracted from the HTML file)
-    if (manifest.side_panel?.default_path) {
-        entryPoints.add(join(srcDir, 'index.tsx'));
-    }
+    // // Add sidepanel script (extracted from the HTML file)
+    // if (manifest.side_panel?.default_path) {
+    //     entryPoints.add(join(srcDir, 'index.tsx'));
+    // }
 
     return Array.from(entryPoints);
 };
