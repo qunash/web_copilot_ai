@@ -62,6 +62,52 @@ export class BrowserTools {
             execute: async () => {
                 return this.refreshPage();
             }
+        }),
+
+        close_tab: tool({
+            description: 'Closes the current browser tab',
+            parameters: z.object({}),
+            execute: async () => {
+                return this.closeTab();
+            }
+        }),
+
+        go_back: tool({
+            description: 'Navigate to the previous page in browser history',
+            parameters: z.object({}),
+            execute: async () => {
+                return this.goBack();
+            }
+        }),
+
+        go_forward: tool({
+            description: 'Navigate to the next page in browser history',
+            parameters: z.object({}),
+            execute: async () => {
+                return this.goForward();
+            }
+        }),
+
+        type_text: tool({
+            description: 'Types the specified text at the current cursor position',
+            parameters: z.object({
+                text: z.string().describe('The text to type')
+            }),
+            execute: async ({ text }) => {
+                return this.typeText(text);
+            }
+        }),
+
+        press_key: tool({
+            description: 'Simulates pressing a specific keyboard key',
+            parameters: z.object({
+                key: z.string().describe('The key to press (e.g., "Enter", "Tab", "ArrowUp")'),
+                modifiers: z.array(z.enum(['ctrl', 'alt', 'shift', 'meta'])).optional()
+                    .describe('Optional modifier keys to hold while pressing the key')
+            }),
+            execute: async ({ key, modifiers }) => {
+                return this.pressKey(key, modifiers);
+            }
         })
     };
 
@@ -80,6 +126,16 @@ export class BrowserTools {
                 return this.pageUp();
             case 'refresh':
                 return this.refreshPage();
+            case 'close_tab':
+                return this.closeTab();
+            case 'go_back':
+                return this.goBack();
+            case 'go_forward':
+                return this.goForward();
+            case 'type_text':
+                return this.typeText(input.text);
+            case 'press_key':
+                return this.pressKey(input.key, input.modifiers);
             default:
                 return {
                     error: `Unknown tool: ${name}`
@@ -219,6 +275,149 @@ export class BrowserTools {
         } catch (error) {
             return {
                 error: `Failed to refresh page: ${error}`
+            };
+        }
+    }
+
+    private async closeTab(): Promise<ToolResult> {
+        try {
+            // Get the active tab
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) {
+                return { error: 'No active tab found' };
+            }
+
+            // Close the active tab
+            await chrome.tabs.remove(tab.id);
+            return { output: 'Tab closed successfully' };
+        } catch (error) {
+            return {
+                error: `Failed to close tab: ${error}`
+            };
+        }
+    }
+
+    private async goBack(): Promise<ToolResult> {
+        try {
+            // Get the active tab
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) {
+                return { error: 'No active tab found' };
+            }
+
+            // Go back in browser history
+            await chrome.tabs.goBack(tab.id);
+            return { output: 'Navigated back successfully' };
+        } catch (error) {
+            return {
+                error: `Failed to navigate back: ${error}`
+            };
+        }
+    }
+
+    private async goForward(): Promise<ToolResult> {
+        try {
+            // Get the active tab
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) {
+                return { error: 'No active tab found' };
+            }
+
+            // Go forward in browser history
+            await chrome.tabs.goForward(tab.id);
+            return { output: 'Navigated forward successfully' };
+        } catch (error) {
+            return {
+                error: `Failed to navigate forward: ${error}`
+            };
+        }
+    }
+
+    private async typeText(text: string): Promise<ToolResult> {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) {
+                return { error: 'No active tab found' };
+            }
+
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: function() {
+                    const textToType = arguments[0];
+                    const activeElement = document.activeElement as HTMLElement;
+                    if (activeElement && 'value' in activeElement) {
+                        const inputElement = activeElement as HTMLInputElement;
+                        const startPos = inputElement.selectionStart || 0;
+                        const endPos = inputElement.selectionEnd || 0;
+                        const currentValue = inputElement.value;
+                        
+                        inputElement.value = currentValue.substring(0, startPos) + 
+                            textToType + 
+                            currentValue.substring(endPos);
+                        
+                        // Move cursor to end of inserted text
+                        const newPos = startPos + textToType.length;
+                        inputElement.setSelectionRange(newPos, newPos);
+                    }
+                },
+                args: [text]
+            });
+
+            return { 
+                output: `Typed text: "${text}"`,
+                system: 'Text input completed'
+            };
+        } catch (error) {
+            return {
+                error: `Failed to type text: ${error}`
+            };
+        }
+    }
+
+    private async pressKey(key: string, modifiers: string[] = []): Promise<ToolResult> {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) {
+                return { error: 'No active tab found' };
+            }
+
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: function() {
+                    const keyToPress = arguments[0];
+                    const keyModifiers = arguments[1];
+                    const options: KeyboardEventInit = {
+                        key: keyToPress,
+                        bubbles: true,
+                        cancelable: true,
+                        ctrlKey: keyModifiers.includes('ctrl'),
+                        altKey: keyModifiers.includes('alt'),
+                        shiftKey: keyModifiers.includes('shift'),
+                        metaKey: keyModifiers.includes('meta')
+                    };
+
+                    // Dispatch keydown event
+                    const keydownEvent = new KeyboardEvent('keydown', options);
+                    document.activeElement?.dispatchEvent(keydownEvent);
+
+                    // Dispatch keyup event
+                    const keyupEvent = new KeyboardEvent('keyup', options);
+                    document.activeElement?.dispatchEvent(keyupEvent);
+                },
+                args: [key, modifiers]
+            });
+
+            const modifierString = modifiers.length > 0 
+                ? ` with modifiers: ${modifiers.join('+')}` 
+                : '';
+
+            return { 
+                output: `Pressed key: "${key}"${modifierString}`,
+                system: 'Key press simulated'
+            };
+        } catch (error) {
+            return {
+                error: `Failed to press key: ${error}`
             };
         }
     }
