@@ -12,7 +12,7 @@ export const ChatInterface = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        sendMessage(inputValue.trim());
+        sendMessage({content: inputValue.trim(), isUser: true});
     };
 
     return (

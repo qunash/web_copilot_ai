@@ -9,6 +9,7 @@ interface ChatMessage {
     isUser: boolean;
     isError?: boolean;
     isToolResult?: boolean;
+    toolUseId?: string;
 }
 
 const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
@@ -33,8 +34,6 @@ const anthropicClient = createAnthropic({
     }
 });
 
-
-
 export const useChat = () => {
     const model = anthropicClient('claude-3-5-sonnet-20241022');
     const browserTools = new BrowserTools();
@@ -56,71 +55,75 @@ export const useChat = () => {
     }, [messages]);
 
     const convertMessagesForAPI = (messages: ChatMessage[]): any[] => {
+        console.log('Converting messages for API:', messages);
         return messages.map(message => {
+            if (message.isToolResult && message.toolUseId) {
+                return {
+                    role: 'tool',
+                    content: [{
+                        type: 'tool-result',
+                        toolCallId: message.toolUseId,
+                        toolName: 'navigate',
+                        content: typeof message.content === 'string'
+                            ? message.content
+                            : JSON.stringify(message.content)
+                    }]
+                };
+            }
             return {
                 role: message.isUser ? 'user' : 'assistant',
-                content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+                content: typeof message.content === 'string' 
+                    ? message.content 
+                    : JSON.stringify(message.content)
             };
         });
     };
 
-    const sendMessage = async (message: string) => {
-        if (!message || isProcessing) return;
-
-        setInputValue('');
-        setMessages(prev => [...prev, { content: message, isUser: true }]);
+    const handleNewMessage = async (messages: ChatMessage[]) => {
+        if (isProcessing) return;
+        
         setIsProcessing(true);
-
         try {
             const result = await streamText({
                 model,
                 messages: [
                     { role: 'system', content: SYSTEM_PROMPT },
-                    ...convertMessagesForAPI(messages),
-                    { role: 'user', content: message }
+                    ...convertMessagesForAPI(messages)
                 ],
                 tools: browserTools.getTools(),
                 experimental_toolCallStreaming: true
             });
 
-            // Add the initial empty assistant message
+            // Add initial empty assistant message
             setMessages(prev => [...prev, { content: '', isUser: false }]);
             let fullResponse = '';
 
-            // Process the stream using the AI SDK's protocol
             for await (const chunk of result.fullStream) {
                 switch (chunk.type) {
-                    case 'text-delta':  // Changed from 'text'
+                    case 'text-delta':
                         fullResponse += chunk.textDelta;
-                        setMessages(prev => {
-                            const newMessages = [...prev];
-                            newMessages[newMessages.length - 1] = {
-                                content: fullResponse,
-                                isUser: false
-                            };
-                            return newMessages;
-                        });
+                        setMessages(prev => [
+                            ...prev.slice(0, -1),
+                            { content: fullResponse, isUser: false }
+                        ]);
                         break;
 
                     case 'tool-call':
-                        const toolCallInfo = `Tool Call: ${chunk.toolName}\nArguments: ${JSON.stringify(chunk.args, null, 2)}`;
-                        setMessages(prev => [...prev, {
-                            content: toolCallInfo,
-                            isUser: false,
-                            isToolResult: true
-                        }]);
                         try {
                             const toolResult = await browserTools.runTool(chunk.toolName, chunk.args);
                             setMessages(prev => [...prev, {
                                 content: toolResult,
-                                isUser: false,
-                                isToolResult: true
+                                isUser: true,
+                                isToolResult: true,
+                                toolUseId: chunk.toolCallId
                             }]);
                         } catch (toolError) {
                             console.error('Tool execution error:', toolError);
                             setMessages(prev => [...prev, {
                                 content: toolError instanceof Error ? toolError.message : String(toolError),
-                                isUser: false,
+                                isUser: true,
+                                isToolResult: true,
+                                toolUseId: chunk.toolCallId,
                                 isError: true
                             }]);
                         }
@@ -134,7 +137,6 @@ export const useChat = () => {
                         }]);
                 }
             }
-
         } catch (error) {
             console.error('Error generating response:', error);
             setMessages(prev => [...prev, {
@@ -145,6 +147,18 @@ export const useChat = () => {
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    useEffect(() => {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage?.isUser || lastMessage?.isToolResult) {
+            handleNewMessage(messages);
+        }
+    }, [messages]);
+
+    const sendMessage = (message: ChatMessage) => {
+        setInputValue('');
+        setMessages(prev => [...prev, message]);
     };
 
     return {
