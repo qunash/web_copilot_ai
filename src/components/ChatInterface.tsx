@@ -1,6 +1,8 @@
 import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useMemo } from 'react';
+import { useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 const INITIAL_MESSAGE = {
     id: 'initial-message',
@@ -89,19 +91,25 @@ const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
     );
 };
 
-export const ChatInterface = () => {
+export function ChatInterface() {
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
     const {
         messages,
-        input,
-        handleInputChange,
-        handleSubmit,
+        input: chatInput,
+        handleInputChange: handleChatInputChange,
+        handleSubmit: handleChatSubmit,
         isLoading,
         error
     } = useChat({
         api: "/api/chat",
-        keepLastMessageOnError: true,
         initialMessages: [INITIAL_MESSAGE]
     });
+
+    // Auto-scroll to bottom when messages change
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     return (
         <div className="flex flex-col h-screen max-w-3xl mx-auto p-4">
@@ -111,57 +119,92 @@ export const ChatInterface = () => {
 
             <div className="flex-1 overflow-y-auto mb-4 p-4 space-y-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                 {messages.map((message) => (
-                    <div
-                        key={message.id}
-                        className={`p-3 rounded-lg ${
-                            message.role === 'user'
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 ml-auto'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 mr-auto'
-                        } ${message.toolInvocations?.length ? 'max-w-full' : 'max-w-[85%]'}`}
+                    <div 
+                        key={message.id} 
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                        <div className="break-words">
-                            {message.content}
+                        <div 
+                            className={`max-w-[80%] rounded-lg p-3 ${
+                                message.role === 'user' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'bg-gray-200 text-black'
+                            }`}
+                        >
+                            {message.role === 'user' ? (
+                                <div className="whitespace-pre-wrap">{message.content}</div>
+                            ) : (
+                                <>
+                                    <ReactMarkdown 
+                                        className="prose prose-sm max-w-none dark:prose-invert"
+                                        components={{
+                                            pre: ({ children }) => (
+                                                <pre className="bg-gray-800 p-4 overflow-x-auto rounded-md">
+                                                    {children}
+                                                </pre>
+                                            ),
+                                            code: ({ className, children }) => {
+                                                if (className) {
+                                                    const [lang, file] = className.replace('language-', '').split(':');
+                                                    return (
+                                                        <div className="rounded-md overflow-hidden">
+                                                            {file && (
+                                                                <div className="bg-gray-700 text-gray-200 px-4 py-1 text-sm">
+                                                                    {file}
+                                                                </div>
+                                                            )}
+                                                            <code className={`block text-gray-100 ${file ? '' : 'bg-gray-800 p-4 rounded-md'}`}>
+                                                                {children}
+                                                            </code>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm">
+                                                        {children}
+                                                    </code>
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        {message.content}
+                                    </ReactMarkdown>
+                                    {message.toolInvocations && renderToolInvocations(message.toolInvocations)}
+                                </>
+                            )}
                         </div>
-                        {message.toolInvocations && message.toolInvocations.length > 0 && (
-                            <div className="mt-2">
-                                {renderToolInvocations(message.toolInvocations)}
-                            </div>
-                        )}
                     </div>
                 ))}
+                <div ref={messagesEndRef} />
             </div>
-
-            {error && (
-                <div className="mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100">
-                    An error occurred. Please try again.
-                    <div className="font-mono text-sm mt-2">
-                        {error.message || String(error)}
+            
+            <div className="border-t p-4">
+                <form onSubmit={handleChatSubmit} className="flex space-x-4">
+                    <input
+                        type="text"
+                        value={chatInput}
+                        onChange={handleChatInputChange}
+                        className="flex-1 border rounded-lg px-4 py-2"
+                        placeholder="Type your message..."
+                        disabled={isLoading}
+                    />
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className={`px-6 py-2 rounded-lg text-white ${
+                            isLoading 
+                                ? 'bg-blue-400 cursor-not-allowed' 
+                                : 'bg-blue-500 hover:bg-blue-600'
+                        }`}
+                    >
+                        {isLoading ? 'Sending...' : 'Send'}
+                    </button>
+                </form>
+                {error && (
+                    <div className="mt-2 text-red-500 text-sm">
+                        Error: {error.message}
                     </div>
-                </div>
-            )}
-
-            <form
-                onSubmit={handleSubmit}
-                className="flex gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
-            >
-                <input
-                    type="text"
-                    value={input}
-                    onChange={handleInputChange}
-                    placeholder="Type your instructions..."
-                    className="flex-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isLoading}
-                />
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors duration-200 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                >
-                    Send
-                </button>
-            </form>
+                )}
+            </div>
         </div>
     );
-};
+}
