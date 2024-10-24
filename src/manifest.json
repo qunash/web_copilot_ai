@@ -1,19 +1,34 @@
 {
-    "manifest_version": 3,
-    "name": "Web Copilot AI",
-    "version": "1.0",
-    "description": "AI-powered web assistant",
-    "permissions": [
-      "activeTab"
-    ],
-    "background": {
-      "service_worker": "service_worker.js",
-      "type": "module"
-    },
-    "action": {
-      "default_popup": "index.html"
-    },
-    "host_permissions": [
-      "*://*/*"
-    ]
+  "manifest_version": 3,
+  "name": "Web Copilot AI",
+  "version": "1.0.0",
+  "description": "AI-powered browser assistant that performs actions based on natural language instructions",
+  "action": {
+    "default_title": "Click to open Web Copilot AI side panel"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "index.js"
+      ]
+    }
+  ]
 }

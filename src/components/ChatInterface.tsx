@@ -1,6 +1,11 @@
-import { useChat, type Message } from 'ai/react';
-import { useEffect } from 'react';
+import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
+
+const INITIAL_MESSAGE = {
+    id: 'initial-message',
+    role: 'assistant' as const,
+    content: "Hello! I'm your AI web assistant. I can help you interact with web pages, extract information, and perform various tasks. How can I help you today?"
+};
 
 export const ChatInterface = () => {
     const {
@@ -12,7 +17,8 @@ export const ChatInterface = () => {
         error
     } = useChat({
         api: "/api/chat",
-        keepLastMessageOnError: true
+        keepLastMessageOnError: true,
+        initialMessages: [INITIAL_MESSAGE]
     });
 
     const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {

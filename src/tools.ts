@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { tool } from 'ai';
 
 export interface ToolResult {
     output?: string;
@@ -7,92 +8,62 @@ export interface ToolResult {
     system?: string;
 }
 
-interface Tool {
-    name: string;
-    description: string;
-    parameters: {
-        type: string;
-        properties: Record<string, {
-            type: string;
-            description: string;
-        }>;
-        required: string[];
-    };
-}
-
 // Browser-specific tools implementation
 export class BrowserTools {
-
-    private tools: Tool[] = [
-        {
-            name: 'take_screenshot',
+    private tools = {
+        take_screenshot: tool({
             description: 'Takes a screenshot of the current tab and returns it as a base64 encoded image',
-            parameters: {
-                type: 'object',
-                properties: {},
-                required: []
+            parameters: z.object({}),
+            execute: async () => {
+                return this.takeScreenshot();
             }
-        },
-        {
-            name: 'click',
+        }),
+
+        click: tool({
             description: 'Clicks at the specified coordinates on the current webpage',
-            parameters: {
-                type: 'object',
-                properties: {
-                    x: {
-                        type: 'number',
-                        description: 'X coordinate on the page (in pixels)'
-                    },
-                    y: {
-                        type: 'number',
-                        description: 'Y coordinate on the page (in pixels)'
-                    }
-                },
-                required: ['x', 'y']
+            parameters: z.object({
+                x: z.number().describe('X coordinate on the page (in pixels)'),
+                y: z.number().describe('Y coordinate on the page (in pixels)')
+            }),
+            execute: async ({ x, y }) => {
+                return this.simulateClick(x, y);
             }
-        },
-        {
-            name: 'navigate',
+        }),
+
+        navigate: tool({
             description: 'Opens the specified URL in a new browser tab',
-            parameters: {
-                type: 'object',
-                properties: {
-                    url: {
-                        type: 'string',
-                        description: 'Complete URL to navigate to (must include http:// or https://)'
-                    }
-                },
-                required: ['url']
+            parameters: z.object({
+                url: z.string().describe('Complete URL to navigate to (must include http:// or https://)')
+            }),
+            execute: async ({ url }) => {
+                return this.navigateToUrl(url);
             }
-        },
-        {
-            name: 'page_down',
+        }),
+
+        page_down: tool({
             description: 'Scrolls the webpage down by one page',
-            parameters: {
-                type: 'object',
-                properties: {},
-                required: []
+            parameters: z.object({}),
+            execute: async () => {
+                return this.pageDown();
             }
-        },
-        {
-            name: 'page_up',
+        }),
+
+        page_up: tool({
             description: 'Scrolls the webpage up by one page',
-            parameters: {
-                type: 'object',
-                properties: {},
-                required: []
+            parameters: z.object({}),
+            execute: async () => {
+                return this.pageUp();
             }
-        },
-        {
-            name: 'refresh',
+        }),
+
+        refresh: tool({
             description: 'Refreshes the current webpage',
-            parameters: {
-                type: 'object',
-                properties: {},
-                required: []
+            parameters: z.object({}),
+            execute: async () => {
+                return this.refreshPage();
             }
-        }
-    ];
+        })
+    };
 
     async runTool(name: string, input: any): Promise<ToolResult> {
         switch (name) {
@@ -253,23 +224,6 @@ export class BrowserTools {
     }
 
     getTools(): Record<string, any> {
-        return this.tools.reduce((acc, tool) => {
-            // Convert the parameter definition to Zod schema
-            const properties: Record<string, z.ZodType> = {};
-            Object.entries(tool.parameters.properties).forEach(([key, prop]) => {
-                if (prop.type === 'number') {
-                    properties[key] = z.number();
-                } else if (prop.type === 'string') {
-                    properties[key] = z.string();
-                }
-                // Add more type conversions as needed
-            });
-
-            acc[tool.name] = {
-                description: tool.description,
-                parameters: z.object(properties)
-            };
-            return acc;
-        }, {} as Record<string, any>);
+        return this.tools;
     }
 }
