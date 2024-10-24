@@ -33,46 +33,7 @@ const anthropicClient = createAnthropic({
     }
 });
 
-// Define the StreamEvent type based on your streaming API's event structure
-interface StreamEvent {
-    type: string;
-    data: string;
-}
 
-// Define the structure of the parsed event data
-interface ParsedEvent {
-    type: string;
-    message?: {
-        id: string;
-        type: string;
-        role: string;
-        model: string;
-        content: any[]; // Adjust based on actual content structure
-        stop_reason: string | null;
-        stop_sequence: string | null;
-        usage: {
-            input_tokens: number;
-            output_tokens: number;
-        };
-    };
-    content_block?: {
-        type: string;
-        text?: string;
-        content_block?: {
-            type: string;
-            id: string;
-            name?: string;
-            input?: Record<string, any>;
-        };
-    };
-    delta?: {
-        type: string;
-        partial_json?: string;
-        text?: string;
-    };
-    index?: number;
-    // Add other properties as needed based on your actual event structure
-}
 
 export const useChat = () => {
     const model = anthropicClient('claude-3-5-sonnet-20241022');
@@ -143,11 +104,11 @@ export const useChat = () => {
 
                     case 'tool-call':
                         const toolCallInfo = `Tool Call: ${chunk.toolName}\nArguments: ${JSON.stringify(chunk.args, null, 2)}`;
-                            setMessages(prev => [...prev, {
-                                content: toolCallInfo,
-                                isUser: false,
-                                isToolResult: true
-                            }]);
+                        setMessages(prev => [...prev, {
+                            content: toolCallInfo,
+                            isUser: false,
+                            isToolResult: true
+                        }]);
                         try {
                             const toolResult = await browserTools.runTool(chunk.toolName, chunk.args);
                             setMessages(prev => [...prev, {
@@ -166,7 +127,11 @@ export const useChat = () => {
                         break;
 
                     case 'error':
-                        // throw new Error(chunk.error);
+                        setMessages(prev => [...prev, {
+                            content: typeof chunk.error === 'string' ? chunk.error : String(chunk.error),
+                            isUser: false,
+                            isError: true
+                        }]);
                 }
             }
 
