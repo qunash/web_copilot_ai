@@ -28,19 +28,38 @@ export const ChatInterface = () => {
                 {messages.map((msg, idx) => (
                     <div
                         key={idx}
-                        className={`p-3 rounded-lg max-w-[85%] break-words ${msg.isError
+                        className={`p-3 rounded-lg max-w-[85%] ${msg.isError
                             ? 'bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100 ml-0'
                             : msg.isUser
                                 ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 ml-auto'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 mr-auto'
                             }`}
                     >
-                        {msg.content}
+                        <div className="break-words">
+                            {typeof msg.content === 'string' ? (
+                                msg.content
+                            ) : msg.isToolResult ? (
+                                <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                    <h4 className="font-semibold">Tool Result:</h4>
+                                    {msg.content.image_data_url ? (
+                                        <img src={msg.content.image_data_url} alt="Tool Result" className="rounded-lg" />
+                                    ) : (
+                                        <pre className="whitespace-pre-wrap overflow-x-auto max-w-full">
+                                            {JSON.stringify(msg.content, null, 2)}
+                                        </pre>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="break-words overflow-hidden">
+                                    {msg.content.output || msg.content.error || msg.content.system || JSON.stringify(msg.content)}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>
 
-            <form 
+            <form
                 onSubmit={handleSubmit}
                 className="flex gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
