@@ -38,6 +38,7 @@ export async function handleChatRequest(request: Request): Promise<Response> {
         ...messages
       ],
       tools: browserTools.getTools(),
+      maxSteps: 10,
       experimental_toolCallStreaming: true
     });
 

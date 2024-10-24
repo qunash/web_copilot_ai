@@ -147,9 +147,10 @@ export class BrowserTools {
         try {
             const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: 'png', quality: 100 });
             if (dataUrl) {
+                const scaledDataUrl = await this.scaleImage(dataUrl, 1024, 768);
                 return {
-                    image_data_url: dataUrl,
-                    system: 'Screenshot taken successfully'
+                    image_data_url: scaledDataUrl,
+                    system: 'Screenshot taken and scaled successfully'
                 };
             } else {
                 return {
@@ -161,6 +162,41 @@ export class BrowserTools {
                 error: `Failed to take screenshot: ${error}`
             };
         }
+    }
+
+    private scaleImage(dataUrl: string, maxWidth: number, maxHeight: number): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                // Calculate scaling ratio while maintaining aspect ratio
+                let ratio = 1;
+                if (img.width > maxWidth || img.height > maxHeight) {
+                    const widthRatio = maxWidth / img.width;
+                    const heightRatio = maxHeight / img.height;
+                    ratio = Math.min(widthRatio, heightRatio);
+                }
+
+                // Create canvas and scale image
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width * ratio;
+                canvas.height = img.height * ratio;
+                
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Failed to get canvas context'));
+                    return;
+                }
+
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/png'));
+            };
+
+            img.onerror = () => {
+                reject(new Error('Failed to load image'));
+            };
+
+            img.src = dataUrl;
+        });
     }
 
     private async simulateClick(x: number, y: number): Promise<ToolResult> {
@@ -384,25 +420,72 @@ export class BrowserTools {
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: function() {
-                    const keyToPress = arguments[0];
-                    const keyModifiers = arguments[1];
-                    const options: KeyboardEventInit = {
-                        key: keyToPress,
-                        bubbles: true,
-                        cancelable: true,
-                        ctrlKey: keyModifiers.includes('ctrl'),
-                        altKey: keyModifiers.includes('alt'),
-                        shiftKey: keyModifiers.includes('shift'),
-                        metaKey: keyModifiers.includes('meta')
-                    };
+                    const [keyToPress, keyModifiers] = arguments;
 
-                    // Dispatch keydown event
-                    const keydownEvent = new KeyboardEvent('keydown', options);
-                    document.activeElement?.dispatchEvent(keydownEvent);
+                    const activeElement = document.activeElement || document.body;
+                    
+                    // Handle special cases for form elements
+                    if (activeElement instanceof HTMLInputElement || 
+                        activeElement instanceof HTMLTextAreaElement) {
+                        
+                        if (keyToPress === 'Enter') {
+                            // For Enter key, submit the form if it exists
+                            if (activeElement.form) {
+                                activeElement.form.submit();
+                                return;
+                            }
+                        } else if (keyToPress === 'Tab') {
+                            // For Tab key, focus next element
+                            const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+                            const elements = Array.from(document.querySelectorAll(focusableElements));
+                            const index = elements.indexOf(activeElement);
+                            const nextElement = elements[index + 1] || elements[0];
+                            (nextElement as HTMLElement).focus();
+                            return;
+                        } else if (keyToPress === 'Backspace') {
+                            // Handle backspace for input elements
+                            const start = activeElement.selectionStart || 0;
+                            const end = activeElement.selectionEnd || 0;
+                            if (start === end) {
+                                activeElement.value = activeElement.value.slice(0, start - 1) + 
+                                                    activeElement.value.slice(end);
+                                activeElement.setSelectionRange(start - 1, start - 1);
+                            } else {
+                                activeElement.value = activeElement.value.slice(0, start) + 
+                                                    activeElement.value.slice(end);
+                                activeElement.setSelectionRange(start, start);
+                            }
+                            return;
+                        }
+                    }
 
-                    // Dispatch keyup event
-                    const keyupEvent = new KeyboardEvent('keyup', options);
-                    document.activeElement?.dispatchEvent(keyupEvent);
+                    // Handle Enter key for buttons and links
+                    if (keyToPress === 'Enter' && 
+                        (activeElement instanceof HTMLButtonElement || 
+                         activeElement instanceof HTMLAnchorElement)) {
+                        activeElement.click();
+                        return;
+                    }
+
+                    // Handle arrow keys for scrolling
+                    const scrollAmount = 40; // pixels
+                    if (keyToPress === 'ArrowUp') {
+                        window.scrollBy(0, -scrollAmount);
+                    } else if (keyToPress === 'ArrowDown') {
+                        window.scrollBy(0, scrollAmount);
+                    } else if (keyToPress === 'ArrowLeft') {
+                        window.scrollBy(-scrollAmount, 0);
+                    } else if (keyToPress === 'ArrowRight') {
+                        window.scrollBy(scrollAmount, 0);
+                    } else if (keyToPress === 'PageUp') {
+                        window.scrollBy(0, -window.innerHeight);
+                    } else if (keyToPress === 'PageDown') {
+                        window.scrollBy(0, window.innerHeight);
+                    } else if (keyToPress === 'Home') {
+                        window.scrollTo(0, 0);
+                    } else if (keyToPress === 'End') {
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
                 },
                 args: [key, modifiers]
             });
