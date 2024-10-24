@@ -68,6 +68,7 @@ export class BrowserTools {
     async runTool(name: string, input: any): Promise<ToolResult> {
         switch (name) {
             case 'take_screenshot':
+                // Directly call the takeScreenshot method without sending a message
                 return this.takeScreenshot();
             case 'click':
                 return this.simulateClick(input.x, input.y);
@@ -88,16 +89,15 @@ export class BrowserTools {
 
     private async takeScreenshot(): Promise<ToolResult> {
         try {
-            // Send message to background script to take screenshot
-            const response = await chrome.runtime.sendMessage({ action: 'action_take_screenshot' });
-            if (response.success) {
+            const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: 'png', quality: 100 });
+            if (dataUrl) {
                 return {
-                    image_data_url: response.imageData,
+                    image_data_url: dataUrl,
                     system: 'Screenshot taken successfully'
                 };
             } else {
                 return {
-                    error: response.error || 'Unknown error occurred while taking screenshot'
+                    error: 'Failed to capture screenshot'
                 };
             }
         } catch (error) {

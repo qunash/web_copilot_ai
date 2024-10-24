@@ -16,29 +16,6 @@ chrome.runtime.onInstalled.addListener(() => {
     .catch((error) => console.error('Failed to set panel options:', error));
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'action_take_screenshot') {
-    chrome.tabs.captureVisibleTab(
-      undefined,
-      { format: 'png', quality: 100 },
-      (dataUrl) => {
-        if (!dataUrl) {
-          console.error('Screenshot capture failed');
-          (sendResponse as (response: any) => void)({ success: false, error: 'Failed to capture screenshot' });
-        } else {
-          (sendResponse as (response: any) => void)({
-            success: true,
-            imageData: dataUrl
-          });
-        }
-      }
-    );
-
-    // Return true to indicate we will send a response asynchronously
-    return true;
-  }
-});
-
 // Add this new listener for fetch events
 self.addEventListener('fetch', (event: FetchEvent) => {
   if (event.request.url.endsWith('/api/chat')) {
