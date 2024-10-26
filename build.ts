@@ -62,7 +62,7 @@ async function buildJavaScript() {
         const result = await Bun.build({
             entrypoints,
             outdir: distDir,
-            minify: true,
+            minify: false,
             target: 'browser',
         });
 

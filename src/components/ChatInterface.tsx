@@ -10,64 +10,78 @@ const INITIAL_MESSAGE = {
     content: "Hello! I'm your AI web assistant. I can help you interact with web pages, extract information, and perform various tasks. How can I help you today?"
 };
 
-// Add type for tool result
-type ToolResult = {
-    output?: string;
-    image_data_url?: string;
-};
-
 const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
     const content = useMemo(() => {
-        // Handle screenshots/images
-        if (tool.state === 'result' && 'result' in tool && tool.result?.image_data_url) {
+        // Show the tool name and arguments
+        const toolInfo = (
+            <div className="font-mono text-xs mb-1">
+                {tool.toolName}({
+                    Object.entries(tool.args)
+                        .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+                        .join(', ')
+                })
+            </div>
+        );
+
+        // Handle tool results
+        if (tool.state === 'result' && 'result' in tool) {
+            const result = tool.result;
+            
+            // Handle screenshot tool result
+            if (tool.toolName === 'take_screenshot') {
+                if (result.error) {
+                    return (
+                        <>
+                            {toolInfo}
+                            <div className="text-red-500">{result.error}</div>
+                        </>
+                    );
+                }
+                
+                if (result.data) {
+                    return (
+                        <>
+                            {toolInfo}
+                            <img 
+                                src={`data:image/png;base64,${result.data}`}
+                                alt="Screenshot result"
+                                className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-600"
+                            />
+                        </>
+                    );
+                }
+            }
+
+            // Handle other tool results
             return (
-                <img 
-                    src={tool.result.image_data_url} 
-                    alt="Screenshot result"
-                    className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-600"
-                />
+                <>
+                    {toolInfo}
+                    <div className="mt-1">
+                        <span>{typeof result === 'string' ? result : JSON.stringify(result)}</span>
+                    </div>
+                </>
             );
         }
 
-        // Handle navigation
-        if (tool.toolName === 'navigate') {
-            if (tool.state === 'result') {
-                return <span>✓ Opened new page</span>;
-            }
-            return <span>Opening page...</span>;
-        }
-
-        // Handle clicks
-        if (tool.toolName === 'click') {
-            if (tool.state === 'result') {
-                return <span>✓ Clicked on page</span>;
-            }
-            return <span>Clicking...</span>;
-        }
-
-        // Handle scrolling
-        if (tool.toolName === 'page_up' || tool.toolName === 'page_down') {
-            if (tool.state === 'result') {
-                return <span>✓ Scrolled the page</span>;
-            }
-            return <span>Scrolling...</span>;
-        }
-
-        // Handle other tool results in a simplified way
-        if (tool.state === 'result' && 'result' in tool) {
-            return <span>✓ {tool.result?.output || 'Done'}</span>;
-        }
-
-        return <span>Processing...</span>;
+        // Show processing state
+        return (
+            <>
+                {toolInfo}
+                <div className="mt-1">
+                    <span>{tool.state === 'partial-call' ? tool.state : 'Processing...'}</span>
+                </div>
+            </>
+        );
     }, [tool]);
 
     return (
-        <div className="text-sm font-normal">
+        <div className="text-sm font-normal bg-gray-100 dark:bg-gray-700 p-2 rounded">
             {content}
         </div>
     );
 };
 
+// Update the renderToolInvocations styling
 const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
     if (!toolInvocations?.length) return null;
 
@@ -79,12 +93,14 @@ const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
                     className="flex items-start space-x-2 text-gray-600 dark:text-gray-400"
                 >
                     <span 
-                        className={`inline-block w-1.5 h-1.5 mt-1.5 rounded-full flex-shrink-0 ${
+                        className={`inline-block w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
                             tool.state === 'result' ? 'bg-green-500' :
                             'bg-yellow-500 animate-pulse'
                         }`}
                     ></span>
-                    <ToolResult tool={tool} />
+                    <div className="flex-1">
+                        <ToolResult tool={tool} />
+                    </div>
                 </div>
             ))}
         </div>
@@ -110,6 +126,19 @@ export function ChatInterface() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // Update the error logging
+    useEffect(() => {
+        if (error) {
+            console.error('Chat interface error:', JSON.stringify({
+                name: error.name,
+                message: error.message,
+                cause: error.cause,
+                stack: error.stack,
+                fullError: error
+            }, null, 2));
+        }
+    }, [error]);
 
     return (
         <div className="flex flex-col h-screen max-w-3xl mx-auto p-4">
@@ -201,7 +230,7 @@ export function ChatInterface() {
                 </form>
                 {error && (
                     <div className="mt-2 text-red-500 text-sm">
-                        Error: {error.message}
+                        Error: {error.cause ? JSON.stringify(error.cause) : error.message}
                     </div>
                 )}
             </div>
