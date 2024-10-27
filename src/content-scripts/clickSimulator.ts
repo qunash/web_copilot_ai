@@ -1,7 +1,3 @@
-// Add this at the top of the file
-console.log('Web Copilot Click Simulator initialized');
-
-// Create a class to manage the click indicator
 class ClickIndicator {
     private element: HTMLDivElement | null = null;
     private initialized: boolean = false;
@@ -22,7 +18,7 @@ class ClickIndicator {
 
     private init() {
         if (this.initialized) return;
-        
+
         this.element = document.createElement('div');
         this.element.id = 'web-copilot-click-indicator';
         this.element.style.cssText = `
@@ -84,40 +80,58 @@ async function simulateClick(x: number, y: number): Promise<string> {
         await new Promise(resolve => setTimeout(resolve, 400));
 
         const element = document.elementFromPoint(x, y);
-        // if (!element || !(element instanceof HTMLElement)) {
         if (!element) {
             throw new Error(`No clickable element found at (${x}, ${y})`);
         }
 
-        // console.log(`Found element at (${x}, ${y}):`, element.tagName, element);
-
-        // Dispatch event sequence with proper typing
-        const eventSequence: [EventType, EventOptions][] = [
-            ['mousemove', { buttons: 0 }],
+        // Define the sequence of pointer events
+        const eventSequence: Array<[string, PointerEventInit]> = [
+            ['pointerover', { isPrimary: true, pressure: 0, pointerId: 1 }],
+            ['pointerenter', { isPrimary: true, pressure: 0, pointerId: 1 }],
+            ['pointermove', { isPrimary: true, pressure: 0, pointerId: 1 }],
+            ['pointerdown', { isPrimary: true, pressure: 0.5, pointerId: 1 }],
+            ['pointerup', { isPrimary: true, pressure: 0, pointerId: 1 }],
+            // Include mouse events for better compatibility
             ['mousedown', { buttons: 1 }],
             ['focus', { bubbles: true }],
             ['mouseup', { buttons: 0 }],
-            ['click', { buttons: 0 }]
+            ['click', { buttons: 0 }],
+            ['focus', { bubbles: true }]
         ];
 
+        // Create and dispatch each event
         eventSequence.forEach(([type, options]) => {
-            const EventClass = type === 'focus' ? FocusEvent : MouseEvent;
-            const event = new EventClass(type, {
+            const eventInit = {
                 view: window,
                 bubbles: true,
                 cancelable: true,
                 clientX: x,
                 clientY: y,
+                screenX: x,
+                screenY: y,
                 ...options
-            });
-            if (!element.dispatchEvent(event)) {
-                throw new Error(`${type} event was cancelled`);
+            };
+
+            let event;
+            if (type.startsWith('pointer')) {
+                event = new PointerEvent(type, {
+                    pointerType: 'mouse',
+                    width: 1,
+                    height: 1,
+                    ...eventInit
+                });
+            } else {
+                event = new MouseEvent(type, eventInit);
             }
+
+            element.dispatchEvent(event);
+            console.log(`Dispatched ${type} at (${x}, ${y}) on`, element);
         });
 
-        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        // Attempt to focus on the element after events
+        if (element instanceof HTMLElement) {
             element.focus();
-            // console.log('Input element focused');
+            console.log(`Focused on element at (${x}, ${y})`);
         }
 
         clickIndicator.hide();
@@ -158,14 +172,14 @@ chrome.runtime.onMessage.addListener((
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: SimulateClickResponse) => void
 ) => {
-    console.log('Click Simulator received message:', message);
-    
+    // console.log('Click Simulator received message:', message);
+
     if (message.type === 'SIMULATE_CLICK') {
         simulateClick(message.payload.x, message.payload.y)
             .then(result => sendResponse({ success: true, result }))
-            .catch(error => sendResponse({ 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error' 
+            .catch(error => sendResponse({
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
             }));
         return true;
     }
@@ -177,11 +191,3 @@ window.addEventListener('pagehide', () => clickIndicator.cleanup());
 
 // Alternatively, also listen for beforeunload for broader compatibility
 window.addEventListener('beforeunload', () => clickIndicator.cleanup());
-
-// Add these type definitions near the top of the file
-type EventType = 'mousemove' | 'mousedown' | 'focus' | 'mouseup' | 'click';
-type EventOptions = {
-    buttons?: number;
-    bubbles?: boolean;
-    cancelable?: boolean;
-};

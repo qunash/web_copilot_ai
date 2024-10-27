@@ -1,6 +1,3 @@
-// Add this at the top of the file
-console.log('Web Copilot Page Interactions initialized');
-
 // Export functions that will be called from the extension
 window.webCopilotTools = {
     scrollPage(direction: 'up' | 'down'): string {
@@ -11,7 +8,12 @@ window.webCopilotTools = {
 
     typeText(text: string): string {
         const activeElement = document.activeElement as HTMLElement;
-        if (activeElement && 'value' in activeElement) {
+        if (!activeElement) {
+            return 'No active element found';
+        }
+
+        // Handle input/textarea elements
+        if ('value' in activeElement) {
             const inputElement = activeElement as HTMLInputElement;
             const startPos = inputElement.selectionStart || 0;
             const endPos = inputElement.selectionEnd || 0;
@@ -26,7 +28,32 @@ window.webCopilotTools = {
             inputElement.setSelectionRange(newPos, newPos);
             return `Typed text: "${text}"`;
         }
-        return `No active input element found`;
+        
+        // Handle contentEditable elements or other editable elements
+        if (activeElement.isContentEditable || 
+            activeElement.getAttribute('role') === 'textbox') {
+            const selection = window.getSelection();
+            const range = selection?.getRangeAt(0);
+            
+            if (selection && range) {
+                // Delete any selected text first
+                range.deleteContents();
+                
+                // Insert the new text
+                const textNode = document.createTextNode(text);
+                range.insertNode(textNode);
+                
+                // Move cursor to end of inserted text
+                range.setStartAfter(textNode);
+                range.setEndAfter(textNode);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                return `Typed text: "${text}"`;
+            }
+        }
+
+        return 'No suitable input element found';
     },
 
     handleKeyPress(key: string, modifiers: string[] = []): string {
@@ -154,7 +181,7 @@ chrome.runtime.onMessage.addListener((
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: PageInteractionResponse) => void
 ) => {
-    console.log('Page Interactions content script received message:', message);
+    // console.log('Page Interactions content script received message:', message);
     try {
         switch (message.type) {
             case 'SCROLL_PAGE':
