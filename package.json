@@ -21,9 +21,10 @@
   "dependencies": {
     "@ai-sdk/anthropic": "latest",
     "@tailwindcss/typography": "^0.5.15",
+    "@types/chrome": "^0.0.279",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "ai": "3.4.20",
+    "ai": "^3.4.20",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1"

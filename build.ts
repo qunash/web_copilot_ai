@@ -18,7 +18,7 @@ const getEntryPoints = () => {
         entryPoints.add(join(srcDir, manifest.background.service_worker));
     }
 
-    // Add content scripts
+    // Add content scripts from manifest
     manifest.content_scripts?.forEach(script => {
         script.js?.forEach(js => {
             entryPoints.add(join(srcDir, js));
@@ -57,6 +57,19 @@ async function buildJavaScript() {
     console.log("Building JavaScript/TypeScript files...");
     try {
         const entrypoints = getEntryPoints();
+        
+        // Add content scripts explicitly
+        const contentScripts = [
+            join(srcDir, 'content-scripts/clickSimulator.ts'),
+            join(srcDir, 'content-scripts/pageInteractions.ts')
+        ];
+        
+        contentScripts.forEach(script => {
+            if (!entrypoints.includes(script)) {
+                entrypoints.push(script);
+            }
+        });
+
         console.log("Building entry points:", entrypoints);
 
         const result = await Bun.build({
@@ -69,6 +82,10 @@ async function buildJavaScript() {
         if (!result.success) {
             throw new Error(result.logs.join('\n'));
         }
+
+        // Ensure content-scripts directory exists in dist
+        await $`mkdir -p ${join(distDir, 'content-scripts')}`;
+
         console.log("JavaScript built successfully");
     } catch (error) {
         console.error("Error building JavaScript:", error);

@@ -1,14 +1,6 @@
 import { z } from 'zod';
 import { tool, type CoreToolResult } from 'ai';
 
-type ScriptInjectionFunction = (...args: any[]) => void | Promise<void> | string | Promise<string>;
-
-interface InjectionResult<T = any> {
-    frameId: number;
-    result: T;
-}
-
-// Browser-specific tools implementation
 export const browserTools = {
     take_screenshot: tool({
         description: 'Takes a screenshot of the current tab and returns it as a base64 encoded image',
@@ -118,31 +110,39 @@ export const browserTools = {
     })
 };
 
-// Helper function to safely execute scripts
-async function executeScript<T extends ScriptInjectionFunction>(
-    tabId: number,
-    func: T,
-    ...args: Parameters<T>
-): Promise<InjectionResult<Awaited<ReturnType<T>>>[]> {
-    const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        func,
-        args
-    }) as InjectionResult<Awaited<ReturnType<T>>>[];
-
-    return results;
-}
-
 // Move the implementation functions outside of the browserTools object
 async function takeScreenshot(): Promise<{ data: string }> {
     try {
-        const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: 'png', quality: 100 });
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+            throw new Error('No active tab found');
+        }
+
+        const zoomFactor = await chrome.tabs.getZoom(tab.id);
+        const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: 'png', quality: 80 });
+        
         if (!dataUrl) {
             throw new Error('Failed to capture screenshot');
         }
 
-        // Extract base64 data directly
-        const base64Data = dataUrl.split(',')[1];
+        const devicePixelRatio = await sendContentScriptMessage<number>({
+            type: 'GET_DEVICE_PIXEL_RATIO'
+        });
+
+        const processedImage = await sendContentScriptMessage<string>({
+            type: 'PROCESS_SCREENSHOT',
+            payload: {
+                dataUrl,
+                zoomFactor,
+                devicePixelRatio: Number(devicePixelRatio)
+            }
+        });
+
+        if (!processedImage) {
+            throw new Error('Failed to process screenshot');
+        }
+
+        const base64Data = processedImage.toString().split(',')[1];
         if (!base64Data) {
             throw new Error('Invalid screenshot data format');
         }
@@ -153,70 +153,55 @@ async function takeScreenshot(): Promise<{ data: string }> {
     }
 }
 
+// Update the type for content script responses
+type ContentScriptResponse<T> = {
+    success: boolean;
+    result?: T;
+    error?: string;
+} | string;
+
+// Update the sendContentScriptMessage function for better error handling
+async function sendContentScriptMessage<T>(message: { type: string; payload?: any }): Promise<string> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+        throw new Error('No active tab found');
+    }
+
+    try {
+        const response = await chrome.tabs.sendMessage(tab.id, message) as ContentScriptResponse<T>;
+        
+        if (typeof response === 'string') {
+            return response;
+        }
+
+        if (!response.success) {
+            throw new Error(response.error || 'Operation failed');
+        }
+
+        return response.result?.toString() || 'Operation completed';
+    } catch (error) {
+        // Handle both chrome.runtime.lastError and regular errors
+        const errorMessage = error instanceof Error 
+                ? error.message 
+                : 'Unknown error';
+        throw new Error(`Content script communication failed: ${errorMessage}`);
+    }
+}
+
+// Update the simulateClick function
 async function simulateClick(x: number, y: number): Promise<string> {
     try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id) {
-            throw new Error('No active tab found');
-        }
-
-        const clickAtPoint = (x: number, y: number): string => {
-            const element = document.elementFromPoint(x, y);
-            if (!element) {
-                throw new Error(`No element found at coordinates (${x}, ${y})`);
-            }
-            if (!(element instanceof HTMLElement)) {
-                throw new Error(`Element at (${x}, ${y}) is not an HTMLElement`);
-            }
-
-            const simulateMouseEvent = (eventName: string) => {
-                const event = new MouseEvent(eventName, {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: x,
-                    clientY: y,
-                    button: 0
-                });
-                
-                const dispatched = element.dispatchEvent(event);
-                if (!dispatched) {
-                    throw new Error(`${eventName} event was cancelled`);
-                }
-            };
-
-            try {
-                // Focus the element first
-                element.focus();
-                
-                // Simulate the click sequence
-                simulateMouseEvent("mousedown");
-                simulateMouseEvent("mouseup");
-                simulateMouseEvent("click");
-
-                return `Successfully clicked ${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} at coordinates (${x}, ${y})`;
-            } catch (error) {
-                if (error instanceof Error) {
-                    throw new Error(`Click simulation failed: ${error.message}`);
-                }
-                throw new Error('Click simulation failed with unknown error');
-            }
-        };
-
-        const results = await executeScript(tab.id, clickAtPoint, x, y);
-        if (!results || !results.length) {
-            throw new Error('Script execution returned no results');
-        }
-        
-        return results[0]?.result || 'Click operation completed but no result returned';
-        
+        const response = await sendContentScriptMessage<string>({
+            type: 'SIMULATE_CLICK',
+            payload: { x, y }
+        });
+        return response;
     } catch (error) {
         const errorMessage = error instanceof Error 
             ? error.message 
             : 'Unknown error occurred during click operation';
-        
         console.error('Click operation failed:', error);
-        throw new Error(errorMessage);
+        return `Failed to click at coordinates (${x}, ${y}): ${errorMessage}`;
     }
 }
 
@@ -227,7 +212,7 @@ async function navigateToUrl(url: string): Promise<string> {
     }
 
     // Wait for the page to finish loading
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         function listener(
             tabId: number,
             changeInfo: { status?: string },
@@ -252,33 +237,17 @@ async function navigateToUrl(url: string): Promise<string> {
 }
 
 async function pageDown(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
-    }
-
-    const scrollDown = (): string => {
-        window.scrollBy(0, window.innerHeight);
-        return 'Scrolled down one page';
-    };
-
-    const results = await executeScript(tab.id, scrollDown);
-    return results[0].result;
+    return sendContentScriptMessage({
+        type: 'SCROLL_PAGE',
+        payload: { direction: 'down' }
+    });
 }
 
 async function pageUp(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
-    }
-
-    const scrollUp = (): string => {
-        window.scrollBy(0, -window.innerHeight);
-        return 'Scrolled up one page';
-    };
-
-    const results = await executeScript(tab.id, scrollUp);
-    return results[0].result;
+    return sendContentScriptMessage({
+        type: 'SCROLL_PAGE',
+        payload: { direction: 'up' }
+    });
 }
 
 async function refreshPage(): Promise<string> {
@@ -322,111 +291,15 @@ async function goForward(): Promise<string> {
 }
 
 async function typeText(text: string): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
-    }
-
-    const insertText = (text: string): string => {
-        const activeElement = document.activeElement as HTMLElement;
-        if (activeElement && 'value' in activeElement) {
-            const inputElement = activeElement as HTMLInputElement;
-            const startPos = inputElement.selectionStart || 0;
-            const endPos = inputElement.selectionEnd || 0;
-            const currentValue = inputElement.value;
-
-            inputElement.value = currentValue.substring(0, startPos) +
-                text +
-                currentValue.substring(endPos);
-
-            // Move cursor to end of inserted text
-            const newPos = startPos + text.length;
-            inputElement.setSelectionRange(newPos, newPos);
-            return `Typed text: "${text}"`;
-        }
-        return `No active input element found`;
-    };
-
-    const results = await executeScript(tab.id, insertText, text);
-    return results[0].result;
+    return sendContentScriptMessage({
+        type: 'TYPE_TEXT',
+        payload: { text }
+    });
 }
 
 async function pressKey(key: string, modifiers: string[] = []): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        return `No active tab found`;
-    }
-
-    const handleKeyPress = (key: string, modifiers: string[]): string => {
-        const activeElement = document.activeElement || document.body;
-
-        if (activeElement instanceof HTMLInputElement ||
-            activeElement instanceof HTMLTextAreaElement) {
-
-            if (key === 'Enter' && activeElement.form) {
-                activeElement.form.submit();
-                return 'Form submitted';
-            } else if (key === 'Tab') {
-                const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-                const elements = Array.from(document.querySelectorAll(focusableElements));
-                const index = elements.indexOf(activeElement);
-                const nextElement = elements[index + 1] || elements[0];
-                (nextElement as HTMLElement).focus();
-                return 'Moved focus to next element';
-            } else if (key === 'Backspace') {
-                const start = activeElement.selectionStart || 0;
-                const end = activeElement.selectionEnd || 0;
-                if (start === end) {
-                    activeElement.value = activeElement.value.slice(0, start - 1) +
-                        activeElement.value.slice(end);
-                    activeElement.setSelectionRange(start - 1, start - 1);
-                } else {
-                    activeElement.value = activeElement.value.slice(0, start) +
-                        activeElement.value.slice(end);
-                    activeElement.setSelectionRange(start, start);
-                }
-                return 'Deleted text';
-            }
-        }
-
-        if (key === 'Enter' &&
-            (activeElement instanceof HTMLButtonElement ||
-                activeElement instanceof HTMLAnchorElement)) {
-            activeElement.click();
-            return 'Clicked element';
-        }
-
-        const scrollAmount = 40;
-        switch (key) {
-            case 'ArrowUp':
-                window.scrollBy(0, -scrollAmount);
-                return 'Scrolled up';
-            case 'ArrowDown':
-                window.scrollBy(0, scrollAmount);
-                return 'Scrolled down';
-            case 'ArrowLeft':
-                window.scrollBy(-scrollAmount, 0);
-                return 'Scrolled left';
-            case 'ArrowRight':
-                window.scrollBy(scrollAmount, 0);
-                return 'Scrolled right';
-            case 'PageUp':
-                window.scrollBy(0, -window.innerHeight);
-                return 'Scrolled up one page';
-            case 'PageDown':
-                window.scrollBy(0, window.innerHeight);
-                return 'Scrolled down one page';
-            case 'Home':
-                window.scrollTo(0, 0);
-                return 'Scrolled to top';
-            case 'End':
-                window.scrollTo(0, document.body.scrollHeight);
-                return 'Scrolled to bottom';
-            default:
-                return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
-        }
-    };
-
-    const results = await executeScript(tab.id, handleKeyPress, key, modifiers);
-    return results[0].result;
+    return sendContentScriptMessage({
+        type: 'PRESS_KEY',
+        payload: { key, modifiers }
+    });
 }
