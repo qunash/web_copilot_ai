@@ -173,9 +173,11 @@ chrome.runtime.onMessage.addListener((
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: SimulateClickResponse) => void
 ) => {
-    // console.log('Click Simulator received message:', message);
 
     if (message.type === 'SIMULATE_CLICK') {
+        if (!message.payload.x || !message.payload.y) {
+            throw new Error('Missing required click coordinates');
+        }
         simulateClick(message.payload.x, message.payload.y)
             .then(result => sendResponse({ success: true, result }))
             .catch(error => sendResponse({
