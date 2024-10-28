@@ -5,6 +5,7 @@ import { browserTools } from '../tools';
 const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
 * You are Web Copilot AI, a browser assistant that helps users perform actions in their browser using provided tools.
 * You operate in the side panel of the user's Google Chrome browser.
+* You must try being as helpful and accomodating to the user as possible.
 * You can take screenshots of the current page to understand its content and layout.
 * You can click on specific coordinates on the page to interact with elements.
 * You can open new tabs with specified URLs.
@@ -13,7 +14,7 @@ const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
-* Before clicking on coordinates, always take a screenshot first to verify the current state of the page.
+* Before clicking on coordinates, always take a screenshot first to verify the current state of the page. When you are ready to perform a click you must always output the coordinates you are going to click on in your message prior to click.
 * When navigating to new URLs, make sure they are properly formatted with the protocol (http:// or https://).
 * After performing actions that modify the page state, take a new screenshot to verify the results.
 </IMPORTANT>
@@ -191,13 +192,13 @@ const anthropicClient = createAnthropic({
         console.log('--- Starting message processing ---');
         console.log('Original messages:', requestData.messages);
         
-        // // First fix the format
-        // fixToolUseFormat(init, requestData);
-        // const fixedData = JSON.parse(init.body as string);
-        // console.log('Messages after fixing format:', fixedData.messages);
+        // First fix the format
+        fixToolUseFormat(init, requestData);
+        const fixedData = JSON.parse(init.body as string);
+        console.log('Messages after fixing format:', fixedData.messages);
         
         // Then apply filtering
-        const filteredMessages = filterMessages(requestData.messages, 2, 2);
+        const filteredMessages = filterMessages(fixedData.messages, 2, 2);
         console.log('Messages after filtering:', filteredMessages);
         
         init.body = JSON.stringify({
