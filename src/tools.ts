@@ -15,13 +15,14 @@ export const browserTools = {
     }),
 
     click: tool({
-        description: 'Clicks at the specified coordinates on the current webpage',
+        description: 'Clicks at the specified x and y coordinates on the current webpage. The coordinates are in pixels in the following format: {"x": <x-coordinate>, "y": <y-coordinate>}. There must only be two numbers, one for x and one for y.',
         parameters: z.object({
-            x: z.number().describe('X coordinate on the page (in pixels)'),
-            y: z.number().describe('Y coordinate on the page (in pixels)')
+            x: z.number().describe('X coordinate on the page (in pixels), type: number'),
+            y: z.number().describe('Y coordinate on the page (in pixels), type: number')
         }),
         execute: async ({ x, y }, { abortSignal } = {}) => {
             try {
+                console.log(`simulateClick tool is called (${x}, ${y})`)
                 return simulateClick(x, y);
             } catch (error) {
                 throw new Error(`Failed to click at coordinates (${x}, ${y}): ${error}`);
@@ -271,13 +272,17 @@ async function closeTab(): Promise<string> {
 }
 
 async function goBack(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
-    }
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+        return 'No active tab found';
+        }
 
-    await chrome.tabs.goBack(tab.id);
-    return 'Navigated back successfully';
+        await chrome.tabs.goBack(tab.id);
+        return 'Navigated back successfully';
+    } catch (error) {
+        return `Failed to navigate back: ${error}`;
+    }
 }
 
 async function goForward(): Promise<string> {
