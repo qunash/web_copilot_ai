@@ -1,6 +1,6 @@
 // Export functions that will be called from the extension
 window.webCopilotTools = {
-    scrollPage(direction: 'up' | 'down'): string {
+    pageUpOrDown(direction: 'up' | 'down'): string {
         const amount = direction === 'up' ? -window.innerHeight : window.innerHeight;
         window.scrollBy(0, amount);
         return `Scrolled ${direction} one page`;
@@ -130,23 +130,91 @@ window.webCopilotTools = {
             default:
                 return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
         }
-    }
+    },
+
+    scrollAtPosition(x: number, y: number, deltaY: number): string {
+        // Find the element at the specified position
+        const element = document.elementFromPoint(x, y);
+        if (!element) {
+            return 'No element found at specified position';
+        }
+
+        // Function to find scrollable parent
+        const getScrollableParent = (node: Element): Element | null => {
+            const isScrollable = (el: Element): boolean => {
+                const style = window.getComputedStyle(el);
+                const overflowY = style.getPropertyValue('overflow-y');
+                return overflowY !== 'visible' && overflowY !== 'hidden' && 
+                       (el as HTMLElement).scrollHeight > (el as HTMLElement).clientHeight;
+            };
+
+            if (node === document.body) {
+                return document.body;
+            }
+
+            let parent = node.parentElement;
+            while (parent) {
+                if (isScrollable(parent)) {
+                    return parent;
+                }
+                parent = parent.parentElement;
+            }
+            return document.body;
+        };
+
+        // Get the scrollable container
+        const scrollContainer = getScrollableParent(element);
+        
+        if (scrollContainer) {
+            // Use smooth scrolling with requestAnimationFrame for better performance
+            const currentScroll = scrollContainer.scrollTop;
+            const targetScroll = currentScroll + deltaY;
+            
+            scrollContainer.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+            });
+
+            // Also dispatch a native wheel event for compatibility
+            const wheelEvent = new WheelEvent('wheel', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,  // Allows the event to cross shadow DOM boundaries
+                clientX: x,
+                clientY: y,
+                deltaY: deltaY,
+                deltaMode: 0,    // 0 = pixel mode
+                view: window
+            });
+            
+            element.dispatchEvent(wheelEvent);
+        } else {
+            // Fallback to window scroll if no scrollable container found
+            window.scrollBy({
+                top: deltaY,
+                behavior: 'smooth'
+            });
+        }
+
+        return `Scrolled at position (${x}, ${y}) with delta ${deltaY}`;
+    },
 };
 
 // Add type declaration for the global object
 declare global {
     interface Window {
         webCopilotTools: {
-            scrollPage(direction: 'up' | 'down'): string;
+            pageUpOrDown(direction: 'up' | 'down'): string;
             typeText(text: string): string;
             handleKeyPress(key: string, modifiers?: string[]): string;
+            scrollAtPosition(x: number, y: number, deltaY: number): string;
         };
     }
 }
 
 // Add these type definitions after the global interface declaration
 type PageInteractionMessage = {
-    type: 'SCROLL_PAGE' | 'TYPE_TEXT' | 'PRESS_KEY' | 'GET_DEVICE_PIXEL_RATIO' | 'PROCESS_SCREENSHOT';
+    type: 'SCROLL_PAGE' | 'TYPE_TEXT' | 'PRESS_KEY' | 'GET_DEVICE_PIXEL_RATIO' | 'PROCESS_SCREENSHOT' | 'SCROLL_AT_POSITION';
     payload?: {
         direction?: 'up' | 'down';
         text?: string;
@@ -156,6 +224,9 @@ type PageInteractionMessage = {
         dataUrl?: string;
         zoomFactor?: number;
         devicePixelRatio?: number;
+        x?: number;
+        y?: number;
+        deltaY?: number;
     };
 };
 
@@ -198,7 +269,7 @@ chrome.runtime.onMessage.addListener((
     try {
         switch (message.type) {
             case 'SCROLL_PAGE':
-                sendResponse(window.webCopilotTools.scrollPage(message.payload!.direction!));
+                sendResponse(window.webCopilotTools.pageUpOrDown(message.payload!.direction!));
                 break;
             case 'TYPE_TEXT':
                 sendResponse(window.webCopilotTools.typeText(message.payload!.text!));
@@ -234,6 +305,16 @@ chrome.runtime.onMessage.addListener((
                         sendResponse({ success: false, error: error.message });
                     });
                 return true;
+            case 'SCROLL_AT_POSITION':
+                if (!message.payload?.x || !message.payload?.y || !message.payload?.deltaY) {
+                    throw new Error('Missing required scroll position parameters');
+                }
+                sendResponse(window.webCopilotTools.scrollAtPosition(
+                    message.payload.x,
+                    message.payload.y,
+                    message.payload.deltaY
+                ));
+                break;
         }
     } catch (error) {
         console.error('Error handling message:', error);

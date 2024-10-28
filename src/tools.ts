@@ -41,7 +41,7 @@ export const browserTools = {
     }),
 
     page_down: tool({
-        description: 'Scrolls the webpage down by one page',
+        description: 'Scrolls the webpage down by one page using the Page Down key',
         parameters: z.object({}),
         execute: async (_, { abortSignal } = {}) => {
             return pageDown();
@@ -49,7 +49,7 @@ export const browserTools = {
     }),
 
     page_up: tool({
-        description: 'Scrolls the webpage up by one page',
+        description: 'Scrolls the webpage up by one page using the Page Up key',
         parameters: z.object({}),
         execute: async (_, { abortSignal } = {}) => {
             return pageUp();
@@ -108,7 +108,19 @@ export const browserTools = {
         execute: async ({ key, modifiers }, { abortSignal } = {}) => {
             return pressKey(key, modifiers);
         }
-    })
+    }),
+
+    scroll_at_position: tool({
+        description: 'Scrolls the webpage at specific coordinates. Positive deltaY scrolls down, negative scrolls up.',
+        parameters: z.object({
+            x: z.number().describe('X coordinate on the page (in pixels)'),
+            y: z.number().describe('Y coordinate on the page (in pixels)'),
+            deltaY: z.number().describe('Amount to scroll: positive for down, negative for up')
+        }),
+        execute: async ({ x, y, deltaY }, { abortSignal } = {}) => {
+            return scrollAtPosition(x, y, deltaY);
+        }
+    }),
 };
 
 // Move the implementation functions outside of the browserTools object
@@ -307,4 +319,20 @@ async function pressKey(key: string, modifiers: string[] = []): Promise<string> 
         type: 'PRESS_KEY',
         payload: { key, modifiers }
     });
+}
+
+async function scrollAtPosition(x: number, y: number, deltaY: number): Promise<string> {
+    try {
+        const response = await sendContentScriptMessage<string>({
+            type: 'SCROLL_AT_POSITION',
+            payload: { x, y, deltaY }
+        });
+        return response;
+    } catch (error) {
+        const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Unknown error occurred during scroll operation';
+        console.error('Scroll operation failed:', error);
+        return `Failed to scroll at coordinates (${x}, ${y}): ${errorMessage}`;
+    }
 }
