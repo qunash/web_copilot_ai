@@ -191,13 +191,13 @@ const anthropicClient = createAnthropic({
         console.log('--- Starting message processing ---');
         console.log('Original messages:', requestData.messages);
         
-        // First fix the format
-        fixToolUseFormat(init, requestData);
-        const fixedData = JSON.parse(init.body as string);
-        console.log('Messages after fixing format:', fixedData.messages);
+        // // First fix the format
+        // fixToolUseFormat(init, requestData);
+        // const fixedData = JSON.parse(init.body as string);
+        // console.log('Messages after fixing format:', fixedData.messages);
         
         // Then apply filtering
-        const filteredMessages = filterMessages(fixedData.messages, 2, 2);
+        const filteredMessages = filterMessages(requestData.messages, 2, 2);
         console.log('Messages after filtering:', filteredMessages);
         
         init.body = JSON.stringify({
