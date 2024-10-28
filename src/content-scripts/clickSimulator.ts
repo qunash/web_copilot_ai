@@ -138,7 +138,8 @@ async function simulateClick(x: number, y: number): Promise<string> {
         return `Successfully clicked ${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} at (${x}, ${y})`;
     } catch (error) {
         clickIndicator.hide();
-        throw error instanceof Error ? error : new Error('Unknown error during click simulation');
+        // throw error instanceof Error ? error : new Error('Unknown error during click simulation');
+        return `Error during click simulation: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
