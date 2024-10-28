@@ -12,42 +12,55 @@ window.webCopilotTools = {
             return 'No active element found';
         }
 
-        // Handle input/textarea elements
-        if ('value' in activeElement) {
-            const inputElement = activeElement as HTMLInputElement;
-            const startPos = inputElement.selectionStart || 0;
-            const endPos = inputElement.selectionEnd || 0;
-            const currentValue = inputElement.value;
+        // For input and textarea elements
+        if (activeElement instanceof HTMLInputElement || 
+            activeElement instanceof HTMLTextAreaElement) {
+            
+            const start = activeElement.selectionStart || 0;
+            const end = activeElement.selectionEnd || 0;
+            const value = activeElement.value;
+            
+            activeElement.value = value.slice(0, start) + text + value.slice(end);
+            activeElement.selectionStart = activeElement.selectionEnd = start + text.length;
+            
+            // Dispatch input event
+            const inputEvent = new Event('input', { bubbles: true });
+            activeElement.dispatchEvent(inputEvent);
+            
+            // Dispatch change event
+            const changeEvent = new Event('change', { bubbles: true });
+            activeElement.dispatchEvent(changeEvent);
 
-            inputElement.value = currentValue.substring(0, startPos) +
-                text +
-                currentValue.substring(endPos);
-
-            // Move cursor to end of inserted text
-            const newPos = startPos + text.length;
-            inputElement.setSelectionRange(newPos, newPos);
             return `Typed text: "${text}"`;
         }
         
-        // Handle contentEditable elements or other editable elements
-        if (activeElement.isContentEditable || 
-            activeElement.getAttribute('role') === 'textbox') {
-            const selection = window.getSelection();
-            const range = selection?.getRangeAt(0);
+        // For contenteditable elements
+        if (activeElement.isContentEditable) {
+            // Create text node
+            const textNode = document.createTextNode(text);
             
-            if (selection && range) {
-                // Delete any selected text first
+            // Get selection
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                // Get range and insert text
+                const range = selection.getRangeAt(0);
                 range.deleteContents();
-                
-                // Insert the new text
-                const textNode = document.createTextNode(text);
                 range.insertNode(textNode);
                 
-                // Move cursor to end of inserted text
+                // Move cursor to end
                 range.setStartAfter(textNode);
                 range.setEndAfter(textNode);
                 selection.removeAllRanges();
                 selection.addRange(range);
+
+                // Dispatch input event
+                const inputEvent = new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: true,
+                    inputType: 'insertText',
+                    data: text
+                });
+                activeElement.dispatchEvent(inputEvent);
                 
                 return `Typed text: "${text}"`;
             }
