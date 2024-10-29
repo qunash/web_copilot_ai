@@ -8,6 +8,7 @@ import { ArrowUp, Square } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { ClickableOption } from './ClickableOption';
 
 const INITIAL_MESSAGE = {
   id: 'initial-message',
@@ -107,6 +108,131 @@ const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
   );
 };
 
+function parseOptions(content: string): { before: string, options: string[], after: string } {
+  // Match both complete options and partial options (those without closing tags yet)
+  const optionRegex = /(\d+)\.\s*<option>(.*?)(?:<\/option>|$)/g;
+  const options: string[] = [];
+  let lastIndex = 0;
+  let before = '';
+  let after = '';
+  let match;
+
+  while ((match = optionRegex.exec(content)) !== null) {
+    if (lastIndex === 0) {
+      before = content.slice(0, match.index);
+    }
+    // If the option doesn't have a closing tag, it's still streaming
+    const isComplete = match[0].endsWith('</option>');
+    const optionText = match[2];
+    
+    // Only add complete options or the last incomplete one
+    if (isComplete || match.index + match[0].length === content.length) {
+      options.push(optionText);
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+
+  after = content.slice(lastIndex);
+  return { before, options, after };
+}
+
+function MessageContent({ content, onOptionSelect }: { 
+  content: string, 
+  onOptionSelect: (option: string) => void 
+}) {
+  const { before, options, after } = parseOptions(content);
+
+  return (
+    <div className="message-content">
+      {before && (
+        <ReactMarkdown 
+          className="prose prose-sm max-w-none dark:prose-invert"
+          components={{
+            pre: ({ children }) => (
+              <pre className="bg-gray-100 dark:bg-gray-900 p-4 overflow-x-auto rounded-md">
+                {children}
+              </pre>
+            ),
+            code: ({ className, children }) => {
+              if (className) {
+                const [lang, file] = className.replace('language-', '').split(':');
+                return (
+                  <div className="rounded-md overflow-hidden">
+                    {file && (
+                      <div className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-1 text-sm">
+                        {file}
+                      </div>
+                    )}
+                    <code className={`block text-gray-800 dark:text-gray-200 ${file ? '' : 'bg-gray-100 dark:bg-gray-900 p-4 rounded-md'}`}>
+                      {children}
+                    </code>
+                  </div>
+                );
+              }
+              return (
+                <code className="bg-gray-100 dark:bg-gray-900 px-1.5 py-0.5 rounded text-sm">
+                  {children}
+                </code>
+              );
+            }
+          }}
+        >
+          {before}
+        </ReactMarkdown>
+      )}
+      {options.length > 0 && (
+        <div className="options-list space-y-2 my-2">
+          {options.map((option, index) => (
+            <ClickableOption
+              key={index}
+              index={index + 1}
+              content={option}
+              onSelect={() => onOptionSelect(option)}
+            />
+          ))}
+        </div>
+      )}
+      {after && (
+        <ReactMarkdown 
+          className="prose prose-sm max-w-none dark:prose-invert"
+          components={{
+            pre: ({ children }) => (
+              <pre className="bg-gray-100 dark:bg-gray-900 p-4 overflow-x-auto rounded-md">
+                {children}
+              </pre>
+            ),
+            code: ({ className, children }) => {
+              if (className) {
+                const [lang, file] = className.replace('language-', '').split(':');
+                return (
+                  <div className="rounded-md overflow-hidden">
+                    {file && (
+                      <div className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-1 text-sm">
+                        {file}
+                      </div>
+                    )}
+                    <code className={`block text-gray-800 dark:text-gray-200 ${file ? '' : 'bg-gray-100 dark:bg-gray-900 p-4 rounded-md'}`}>
+                      {children}
+                    </code>
+                  </div>
+                );
+              }
+              return (
+                <code className="bg-gray-100 dark:bg-gray-900 px-1.5 py-0.5 rounded text-sm">
+                  {children}
+                </code>
+              );
+            }
+          }}
+        >
+          {after}
+        </ReactMarkdown>
+      )}
+    </div>
+  );
+}
+
 export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -118,7 +244,8 @@ export function ChatInterface() {
     handleSubmit: handleChatSubmit,
     stop,
     isLoading,
-    error
+    error,
+    append
   } = useChat({
     api: "/api/chat",
     initialMessages: [INITIAL_MESSAGE]
@@ -173,6 +300,15 @@ export function ChatInterface() {
     }
   };
 
+  function handleOptionSelect(option: string) {
+    // Send the selected option as a user message
+    append({
+      role: 'user',
+      content: option,
+      id: Date.now().toString()
+    });
+  }
+
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4">
       <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">Web Copilot AI</h2>
@@ -194,40 +330,10 @@ export function ChatInterface() {
                 <div className="whitespace-pre-wrap break-all">{message.content}</div>
               ) : (
                 <>
-                  <ReactMarkdown 
-                    className="prose prose-sm max-w-none dark:prose-invert"
-                    components={{
-                      pre: ({ children }) => (
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-4 overflow-x-auto rounded-md">
-                          {children}
-                        </pre>
-                      ),
-                      code: ({ className, children }) => {
-                        if (className) {
-                          const [lang, file] = className.replace('language-', '').split(':');
-                          return (
-                            <div className="rounded-md overflow-hidden">
-                              {file && (
-                                <div className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-1 text-sm">
-                                  {file}
-                                </div>
-                              )}
-                              <code className={`block text-gray-800 dark:text-gray-200 ${file ? '' : 'bg-gray-100 dark:bg-gray-900 p-4 rounded-md'}`}>
-                                {children}
-                              </code>
-                            </div>
-                          );
-                        }
-                        return (
-                          <code className="bg-gray-100 dark:bg-gray-900 px-1.5 py-0.5 rounded text-sm">
-                            {children}
-                          </code>
-                        );
-                      }
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
+                  <MessageContent 
+                    content={message.content} 
+                    onOptionSelect={handleOptionSelect} 
+                  />
                   {message.toolInvocations && renderToolInvocations(message.toolInvocations)}
                 </>
               )}

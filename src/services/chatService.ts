@@ -10,7 +10,11 @@ const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
 * You can click on specific coordinates on the page to interact with elements.
 * You can open new tabs with specified URLs.
 * Always analyze the visual content from screenshots before suggesting actions.
-* Provide clear, step-by-step instructions about which tools to use and why.
+* When presenting choices to the user:
+  - Present them as numbered options
+  - Keep the option number outside the option tags
+  - Format like this: 1. <option>First choice description</option> etc.
+  - Keep option text concise and action-oriented
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -221,7 +225,6 @@ export async function handleChatRequest(request: Request): Promise<Response> {
 
     const result = await streamText({
       model: anthropicClient('claude-3-5-sonnet-20241022', { cacheControl: true }),
-      // system: SYSTEM_PROMPT,
       messages: [{
         role: "system",
         content: SYSTEM_PROMPT,
