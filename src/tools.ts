@@ -5,11 +5,14 @@ export const browserTools = {
     take_screenshot: tool({
         description: 'Takes a screenshot of the current tab and returns it as a base64 encoded image',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}): Promise<{ data: string }> => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | string> => {
             return takeScreenshot();
         },
         experimental_toToolResultContent(result) {
-            return [{ type: 'image', data: result.data, mimeType: 'image/png' }];
+            // return [{ type: 'image', data: result.data, mimeType: 'image/png' }];
+            return typeof result === 'string'
+            ? [{ type: 'text', text: result }]
+            : [{ type: 'image', data: result.data, mimeType: 'image/png' }];
         },
 
     }),
@@ -124,11 +127,15 @@ export const browserTools = {
 };
 
 // Move the implementation functions outside of the browserTools object
-async function takeScreenshot(): Promise<{ data: string }> {
+async function takeScreenshot(): Promise<{ data: string } | string> {
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) {
             throw new Error('No active tab found');
+        }
+
+        if (tab.url?.startsWith('chrome://')) {
+            return 'Cannot take screenshot of `chrome://` pages due to browser security restrictions';
         }
 
         const zoomFactor = await chrome.tabs.getZoom(tab.id);
@@ -162,7 +169,7 @@ async function takeScreenshot(): Promise<{ data: string }> {
 
         return { data: base64Data };
     } catch (error) {
-        throw new Error(`Failed to take screenshot: ${error}`);
+        return `Failed to take screenshot: ${error}`;
     }
 }
 
