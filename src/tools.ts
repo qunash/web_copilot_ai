@@ -41,7 +41,7 @@ export const browserTools = {
     }),
 
     page_down: tool({
-        description: 'Scrolls the webpage down by one page using the Page Down key',
+        description: 'Presses the Page Down key',
         parameters: z.object({}),
         execute: async (_, { abortSignal } = {}) => {
             return pageDown();
@@ -49,7 +49,7 @@ export const browserTools = {
     }),
 
     page_up: tool({
-        description: 'Scrolls the webpage up by one page using the Page Up key',
+        description: 'Presses the Page Up key',
         parameters: z.object({}),
         execute: async (_, { abortSignal } = {}) => {
             return pageUp();
@@ -111,7 +111,7 @@ export const browserTools = {
     }),
 
     scroll_at_position: tool({
-        description: 'Scrolls the webpage at specific coordinates. Positive deltaY scrolls down, negative scrolls up.',
+        description: 'Simulates mouse scrolling at the specified coordinates. Positive deltaY scrolls down, negative scrolls up.',
         parameters: z.object({
             x: z.number().describe('X coordinate on the page (in pixels)'),
             y: z.number().describe('Y coordinate on the page (in pixels)'),
@@ -336,3 +336,4 @@ async function scrollAtPosition(x: number, y: number, deltaY: number): Promise<s
         return `Failed to scroll at coordinates (${x}, ${y}): ${errorMessage}`;
     }
 }
+
