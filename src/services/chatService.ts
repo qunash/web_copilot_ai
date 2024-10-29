@@ -44,6 +44,7 @@ interface ToolResultItem {
   type: 'tool_result';
   tool_use_id: string;
   content: string | ToolResultContent[];
+  cache_control?: { type: string };  // Add this optional property
 }
 
 interface Message {
@@ -97,6 +98,9 @@ function normalizeToolResultContent(content: string | ToolResultContent[]): Tool
           type: 'base64',
           media_type: item.mimeType || 'image/png',
           data: item.data
+        },
+        experimental_providerMetadata: {
+          anthropic: { cacheControl: { type: "ephemeral" } }
         }
       };
     }
@@ -117,9 +121,17 @@ function normalizeMessages(messages: Message[]): Message[] {
           return contentItem;
         }
 
+        // Check if this tool result contains an image
+        const normalizedContent = normalizeToolResultContent(contentItem.content);
+        const hasImage = normalizedContent.some(item => item.type === 'image');
+
         return {
           ...contentItem,
-          content: normalizeToolResultContent(contentItem.content)
+          content: normalizedContent,
+          // Add cache_control for tool results containing images
+          ...(hasImage && {
+            cache_control: { type: "ephemeral" }
+          })
         };
       })
     };
@@ -173,8 +185,9 @@ function filterMessages(messages: Message[], imagesToKeep: number = 2, minRemova
         if (hasImage && imagesToRemove > 0) {
           imagesToRemove--;
           console.log('Removing image from message with tool_use_id:', item.tool_use_id);
+          const { cache_control, ...itemWithoutCache } = item;  // Remove cache_control via destructuring
           return {
-            ...item,
+            ...itemWithoutCache,
             content: [] // Empty array instead of '[]' string
           };
         }
