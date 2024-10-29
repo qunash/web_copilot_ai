@@ -1,5 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText, convertToCoreMessages, type CoreToolCallUnion, type CoreToolResultUnion, generateText } from 'ai';
+import { streamText, convertToCoreMessages } from 'ai';
 import { browserTools } from '../tools';
 
 const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
