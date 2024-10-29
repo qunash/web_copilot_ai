@@ -1,5 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText, convertToCoreMessages } from 'ai';
+import { streamText } from 'ai';
 import { browserTools } from '../tools';
 
 const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
-* Before clicking on coordinates, always take a screenshot first to verify the current state of the page. When you are ready to perform a click you must always output the coordinates you are going to click on in your message prior to click.
+* Before clicking on coordinates, always take a screenshot first to verify the current state of the page.
 * When navigating to new URLs, make sure they are properly formatted with the protocol (http:// or https://).
 * After performing actions that modify the page state, take a new screenshot to verify the results.
 </IMPORTANT>
@@ -160,11 +160,11 @@ function filterMessages(messages: Message[], imagesToKeep: number = 2, minRemova
   );
 
   const totalImages = toolResultMessages.length;
-  console.log(`Found ${totalImages} total images`);
+  // console.log(`Found ${totalImages} total images`);
   
   let imagesToRemove = totalImages - imagesToKeep;
   imagesToRemove -= imagesToRemove % minRemovalThreshold;
-  console.log(`Will remove ${imagesToRemove} images to keep ${imagesToKeep} most recent`);
+  // console.log(`Will remove ${imagesToRemove} images to keep ${imagesToKeep} most recent`);
 
   if (imagesToRemove <= 0) return messages;
 
@@ -184,11 +184,11 @@ function filterMessages(messages: Message[], imagesToKeep: number = 2, minRemova
 
         if (hasImage && imagesToRemove > 0) {
           imagesToRemove--;
-          console.log('Removing image from message with tool_use_id:', item.tool_use_id);
-          const { cache_control, ...itemWithoutCache } = item;  // Remove cache_control via destructuring
+          // console.log('Removing image from message with tool_use_id:', item.tool_use_id);
+          const { cache_control, ...itemWithoutCache } = item;
           return {
             ...itemWithoutCache,
-            content: [] // Empty array instead of '[]' string
+            content: []
           };
         }
         return item;
@@ -206,24 +206,24 @@ const anthropicClient = createAnthropic({
     if (init.body) {
       const requestData = JSON.parse(init.body as string);
       if (requestData.messages) {
-        console.log('--- Starting message processing ---');
-        console.log('Original messages:', requestData.messages);
+        // console.log('--- Starting message processing ---');
+        // console.log('Original messages:', requestData.messages);
         
         // First fix the format
         fixToolUseFormat(init, requestData);
         const fixedData = JSON.parse(init.body as string);
-        console.log('Messages after fixing format:', fixedData.messages);
+        // console.log('Messages after fixing format:', fixedData.messages);
         
         // Then apply filtering
         const filteredMessages = filterMessages(fixedData.messages, 2, 2);
-        console.log('Messages after filtering:', filteredMessages);
+        // console.log('Messages after filtering:', filteredMessages);
         
         init.body = JSON.stringify({
           ...requestData,
           messages: filteredMessages
         });
         
-        console.log('--- Processing complete ---');
+        // console.log('--- Processing complete ---');
       }
     }
   
@@ -245,7 +245,7 @@ export async function handleChatRequest(request: Request): Promise<Response> {
           anthropic: { cacheControl: { type: "ephemeral" } },
         }
       },
-      ...convertToCoreMessages(messages)],
+      ...messages],
       tools: browserTools,
       maxSteps: 50,
       // experimental_toolCallStreaming: true

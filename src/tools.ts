@@ -18,17 +18,22 @@ export const browserTools = {
     }),
 
     click: tool({
-        description: 'Clicks at the specified x and y coordinates on the current webpage. The coordinates are in pixels in the following format: {"x": <x-coordinate>, "y": <y-coordinate>}. There must only be two numbers, one for x and one for y.',
+        description: 'Clicks at the specified coordinates on the current webpage. Coordinates should be provided as "x:y" where x and y are pixel values.',
         parameters: z.object({
-            x: z.number().describe('X coordinate on the page (in pixels), type: number'),
-            y: z.number().describe('Y coordinate on the page (in pixels), type: number')
+            coordinates: z.string().describe('Coordinates in the format "x:y" (e.g. "100:200")')
         }),
-        execute: async ({ x, y }, { abortSignal } = {}) => {
+        args: {
+            coordinates: { type: 'string', description: 'Coordinates in the format "x:y" (e.g. "100:200")' }
+        },
+        execute: async ({ coordinates }, { abortSignal } = {}) => {
+            if (!coordinates) {
+                return 'Missing required click coordinates';
+            }
             try {
-                console.log(`simulateClick tool is called (${x}, ${y})`)
+                const [x, y] = coordinates.split(':').map(Number);
                 return simulateClick(x, y);
             } catch (error) {
-                throw new Error(`Failed to click at coordinates (${x}, ${y}): ${error}`);
+                return `Failed to click at coordinates ${coordinates}: ${error}`;
             }
         }
     }),
@@ -97,6 +102,9 @@ export const browserTools = {
             text: z.string().describe('The text to type')
         }),
         execute: async ({ text }, { abortSignal } = {}) => {
+            if (!text) {
+                return 'Missing required text to type';
+            }
             return typeText(text);
         }
     }),
@@ -109,6 +117,9 @@ export const browserTools = {
                 .describe('Optional modifier keys to hold while pressing the key')
         }),
         execute: async ({ key, modifiers }, { abortSignal } = {}) => {
+            if (!key) {
+                return 'Missing required key to press';
+            }
             return pressKey(key, modifiers);
         }
     }),
@@ -121,6 +132,9 @@ export const browserTools = {
             deltaY: z.number().describe('Amount to scroll: positive for down, negative for up')
         }),
         execute: async ({ x, y, deltaY }, { abortSignal } = {}) => {
+            if (isNaN(x) || isNaN(y) || isNaN(deltaY)) {
+                return 'Invalid coordinate or deltaY format. Expected numbers.';
+            }
             return scrollAtPosition(x, y, deltaY);
         }
     }),
@@ -208,12 +222,15 @@ async function sendContentScriptMessage<T>(message: { type: string; payload?: an
     }
 }
 
-// Update the simulateClick function
 async function simulateClick(x: number, y: number): Promise<string> {
+    if (isNaN(x) || isNaN(y)) {
+        return 'Invalid coordinate format. Expected "x:y" where x and y are numbers';
+    }
+    
     try {
         const response = await sendContentScriptMessage<string>({
             type: 'SIMULATE_CLICK',
-            payload: { x, y }
+            payload: { coordinates: `${x}:${y}` }  // Updated to use new format
         });
         return response;
     } catch (error) {

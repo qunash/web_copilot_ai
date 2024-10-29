@@ -156,8 +156,7 @@ declare global {
 type SimulateClickMessage = {
     type: 'SIMULATE_CLICK';
     payload: {
-        x: number;
-        y: number;
+        coordinates: string;
     };
 };
 
@@ -167,18 +166,26 @@ type SimulateClickResponse = {
     error?: string;
 };
 
-// Replace the existing chrome.runtime.onMessage listener with this updated version
 chrome.runtime.onMessage.addListener((
     message: SimulateClickMessage,
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: SimulateClickResponse) => void
 ) => {
-
     if (message.type === 'SIMULATE_CLICK') {
-        if (!message.payload.x || !message.payload.y) {
+        if (!message.payload.coordinates) {
             throw new Error('Missing required click coordinates');
         }
-        simulateClick(message.payload.x, message.payload.y)
+        
+        const [x, y] = message.payload.coordinates.split(':').map(Number);
+        if (isNaN(x) || isNaN(y)) {
+            sendResponse({
+                success: false,
+                error: 'Invalid coordinate format. Expected "x:y" where x and y are numbers'
+            });
+            return true;
+        }
+
+        simulateClick(x, y)
             .then(result => sendResponse({ success: true, result }))
             .catch(error => sendResponse({
                 success: false,
