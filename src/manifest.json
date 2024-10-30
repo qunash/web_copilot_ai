@@ -12,7 +12,6 @@
   "permissions": [
     "sidePanel",
     "activeTab",
-    "scripting",
     "tabs",
     "storage"
   ],
