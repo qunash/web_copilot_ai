@@ -4,11 +4,12 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useMemo, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ClickableOption } from './ClickableOption';
+import { Settings } from './Settings';
 
 const INITIAL_MESSAGE = {
   id: 'initial-message',
@@ -247,6 +248,7 @@ export function ChatInterface() {
     completionTokens: 0,
     totalTokens: 0
   });
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
   const {
     messages,
@@ -261,15 +263,19 @@ export function ChatInterface() {
     api: "/api/chat",
     initialMessages: [INITIAL_MESSAGE],
     onFinish: (message, { usage }) => {
-      if (usage) {
-        setTokenUsage(prev => ({
-          promptTokens: (prev?.promptTokens || 0) + usage.promptTokens,
-          completionTokens: (prev?.completionTokens || 0) + usage.completionTokens,
-          totalTokens: (prev?.totalTokens || 0) + usage.totalTokens
-        }));
-      }
+      // if (usage) {
+      //   setTokenUsage(prev => ({
+      //     promptTokens: (prev?.promptTokens || 0) + usage.promptTokens,
+      //     completionTokens: (prev?.completionTokens || 0) + usage.completionTokens,
+      //     totalTokens: (prev?.totalTokens || 0) + usage.totalTokens
+      //   }));
+      // }
     }
   });
+
+  useEffect(() => {
+    checkApiKey();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -302,6 +308,11 @@ export function ChatInterface() {
     return () => document.removeEventListener('keydown', handleEscKey);
   }, [isLoading, stop]);
 
+  const checkApiKey = async () => {
+    const { anthropic_api_key } = await chrome.storage.local.get('anthropic_api_key');
+    setHasApiKey(!!anthropic_api_key);
+  };
+
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -321,7 +332,6 @@ export function ChatInterface() {
   };
 
   function handleOptionSelect(option: string) {
-    // Send the selected option as a user message
     append({
       role: 'user',
       content: option,
@@ -329,9 +339,33 @@ export function ChatInterface() {
     });
   }
 
+  const handleSettingsClick = () => {
+    setHasApiKey(false);
+  };
+
+  if (hasApiKey === null) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (!hasApiKey) {
+    return <Settings onKeySubmit={checkApiKey} />;
+  }
+
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4">
-      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">Web Copilot AI</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Web Copilot AI</h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleSettingsClick}
+          className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+          title="Settings"
+        >
+          <SettingsIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+          <span className="sr-only">Settings</span>
+        </Button>
+      </div>
 
       <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
         {messages.map((message) => (
@@ -401,13 +435,13 @@ export function ChatInterface() {
               Error: {error.cause ? JSON.stringify(error.cause) : error.message}
             </div>
           )}
-          {tokenUsage && (
+          {/* {tokenUsage && (
             <div className="flex gap-4">
               <span>Total Prompt Tokens: {tokenUsage.promptTokens}</span>
               <span>Total Completion Tokens: {tokenUsage.completionTokens}</span>
               <span>Conversation Total: {tokenUsage.totalTokens}</span>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>

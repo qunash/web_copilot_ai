@@ -253,44 +253,46 @@ function filterMessages(messages: Message[], imagesToKeep: number = 2, minRemova
   });
 }
 
-const anthropicClient = createAnthropic({
-  apiKey: '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',
-  headers: {
-    'anthropic-dangerous-direct-browser-access': 'true'
-  },
-  fetch: async (url, init = {}) => {
-    if (init.body) {
-      const requestData = JSON.parse(init.body as string);
-      if (requestData.messages) {
-        // console.log('--- Starting message processing ---');
-        // console.log('Original messages:', requestData.messages);
-        
-        // First fix the format
-        fixToolUseFormat(init, requestData);
-        const fixedData = JSON.parse(init.body as string);
-        // console.log('Messages after fixing format:', fixedData.messages);
-        
-        // Then apply filtering
-        const filteredMessages = filterMessages(fixedData.messages, 2, 2);
-        // console.log('Messages after filtering:', filteredMessages);
-        
-        init.body = JSON.stringify({
-          ...requestData,
-          messages: filteredMessages
-        });
-        
-        // console.log('--- Processing complete ---');
-      }
-    }
-  
-    const response = await fetch(url, init);
-    return response;
+// Remove the hardcoded client creation and make it a function
+async function getAnthropicClient() {
+  const { anthropic_api_key } = await chrome.storage.local.get('anthropic_api_key');
+  if (!anthropic_api_key) {
+    throw new Error('No API key found');
   }
-});
+
+  return createAnthropic({
+    apiKey: anthropic_api_key,
+    headers: {
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    fetch: async (url, init = {}) => {
+      if (init.body) {
+        const requestData = JSON.parse(init.body as string);
+        if (requestData.messages) {
+          // First fix the format
+          fixToolUseFormat(init, requestData);
+          const fixedData = JSON.parse(init.body as string);
+          
+          // Then apply filtering
+          const filteredMessages = filterMessages(fixedData.messages, 2, 2);
+          
+          init.body = JSON.stringify({
+            ...requestData,
+            messages: filteredMessages
+          });
+        }
+      }
+    
+      const response = await fetch(url, init);
+      return response;
+    }
+  });
+}
 
 export async function handleChatRequest(request: Request): Promise<Response> {
   try {
     const { messages } = await request.json();
+    const anthropicClient = await getAnthropicClient();
 
     const result = await streamText({
       model: anthropicClient('claude-3-5-sonnet-20241022', { cacheControl: true }),
@@ -304,14 +306,15 @@ export async function handleChatRequest(request: Request): Promise<Response> {
       ...messages],
       tools: browserTools,
       maxSteps: 50,
-      // experimental_toolCallStreaming: true
     });
 
     return result.toDataStreamResponse();
 
   } catch (error) {
     console.error('Error in chat request:', error);
-    return new Response(JSON.stringify({ error: 'An error occurred while processing your request.' }), {
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'An error occurred while processing your request.' 
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
