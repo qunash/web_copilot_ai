@@ -233,9 +233,20 @@ function MessageContent({ content, onOptionSelect }: {
   );
 }
 
+type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+} | null;
+
 export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage>({
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0
+  });
 
   const {
     messages,
@@ -248,7 +259,16 @@ export function ChatInterface() {
     append
   } = useChat({
     api: "/api/chat",
-    initialMessages: [INITIAL_MESSAGE]
+    initialMessages: [INITIAL_MESSAGE],
+    onFinish: (message, { usage }) => {
+      if (usage) {
+        setTokenUsage(prev => ({
+          promptTokens: (prev?.promptTokens || 0) + usage.promptTokens,
+          completionTokens: (prev?.completionTokens || 0) + usage.completionTokens,
+          totalTokens: (prev?.totalTokens || 0) + usage.totalTokens
+        }));
+      }
+    }
   });
 
   useEffect(() => {
@@ -375,11 +395,20 @@ export function ChatInterface() {
             placeholder="What do you need help with?"
           />
         </form>
-        {error && (
-          <div className="mt-2 text-red-500 text-sm">
-            Error: {error.cause ? JSON.stringify(error.cause) : error.message}
-          </div>
-        )}
+        <div className="flex justify-between text-xs text-gray-500 mt-2">
+          {error && (
+            <div className="text-red-500">
+              Error: {error.cause ? JSON.stringify(error.cause) : error.message}
+            </div>
+          )}
+          {tokenUsage && (
+            <div className="flex gap-4">
+              <span>Total Prompt Tokens: {tokenUsage.promptTokens}</span>
+              <span>Total Completion Tokens: {tokenUsage.completionTokens}</span>
+              <span>Conversation Total: {tokenUsage.totalTokens}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
