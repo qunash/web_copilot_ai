@@ -9,10 +9,9 @@ export const browserTools = {
             return takeScreenshot();
         },
         experimental_toToolResultContent(result) {
-            // return [{ type: 'image', data: result.data, mimeType: 'image/png' }];
             return typeof result === 'string'
             ? [{ type: 'text', text: result }]
-            : [{ type: 'image', data: result.data, mimeType: 'image/png' }];
+            : [{ type: 'image', data: result.data, mimeType: 'image/webp' }];
         },
 
     }),

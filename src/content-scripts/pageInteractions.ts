@@ -256,7 +256,7 @@ async function processScreenshot(dataUrl: string, zoomFactor: number, devicePixe
     canvas.height = img.height / scaleFactor;
 
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/png');
+    return canvas.toDataURL('image/webp');
 }
 
 // Update the message listener to ensure consistent return type

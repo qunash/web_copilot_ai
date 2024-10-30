@@ -136,7 +136,7 @@ function normalizeToolResultContent(content: string | ToolResultContent[]): Tool
       type: 'image',
       source: {
         type: 'base64',
-        media_type: parsedContent.mimeType || 'image/png',
+        media_type: parsedContent.mimeType || 'image/webp',
         data: parsedContent.data
       }
     }];
@@ -152,7 +152,7 @@ function normalizeToolResultContent(content: string | ToolResultContent[]): Tool
         type: 'image',
         source: {
           type: 'base64',
-          media_type: item.mimeType || 'image/png',
+          media_type: item.mimeType || 'image/webp',
           data: item.data
         },
         experimental_providerMetadata: {

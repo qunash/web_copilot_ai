@@ -46,7 +46,7 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
             <>
               {toolInfo}
               <img 
-                src={`data:image/png;base64,${result.data}`}
+                src={`data:image/webp;base64,${result.data}`}
                 alt="Screenshot result"
                 className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-700 shadow-md"
               />
