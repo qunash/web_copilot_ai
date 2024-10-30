@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ClickableOption } from './ClickableOption';
 import { Settings } from './Settings';
+import manifest from '../manifest.json';
 
 const INITIAL_MESSAGE = {
   id: 'initial-message',
@@ -429,19 +430,34 @@ export function ChatInterface() {
             placeholder="What do you need help with?"
           />
         </form>
-        <div className="flex justify-between text-xs text-gray-500 mt-2">
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
           {error && (
             <div className="text-red-500">
               Error: {error.cause ? JSON.stringify(error.cause) : error.message}
             </div>
           )}
-          {/* {tokenUsage && (
-            <div className="flex gap-4">
-              <span>Total Prompt Tokens: {tokenUsage.promptTokens}</span>
-              <span>Total Completion Tokens: {tokenUsage.completionTokens}</span>
-              <span>Conversation Total: {tokenUsage.totalTokens}</span>
-            </div>
-          )} */}
+        </div>
+        
+        <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
+          <span>v{manifest.version}</span>
+          <span>•</span>
+          <a 
+            href="https://x.com/hahahahohohe" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            𝕏
+          </a>
+          <span>•</span>
+          <a 
+            href="https://buymeacoffee.com/anzorq" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Buy me a coffee
+          </a>
         </div>
       </div>
     </div>
