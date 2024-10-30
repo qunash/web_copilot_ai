@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "bun build.ts --watch",
-    "build": "bun build.ts"
+    "build": "bun run build.ts --prod"
   },
   "name": "web_copilot_ai",
   "module": "index.ts",

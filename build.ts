@@ -2,9 +2,11 @@ import { watch, promises as fs } from "fs";
 import { join } from "path";
 import { $, Glob } from "bun";
 import manifest from "./src/manifest.json";
+import { createWriteStream } from "fs";
 
 const srcDir = "./src";
 const distDir = "./dist";
+const zipFilePath = "./chrome_extension.zip";
 
 // Define file handling configurations
 const staticFileExtensions = ['.html', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif'];
@@ -39,10 +41,15 @@ async function cleanDist() {
     await $`mkdir -p ${distDir}`;
 }
 
-async function processCSS() {
+async function processCSS(isProd = false) {
     console.log("Processing CSS...");
     try {
-        const postcssResult = await $`postcss ./src/styles/main.css -o ${distDir}/main.css`;
+        const postcssArgs = ["postcss", "./src/styles/main.css", "-o", `${distDir}/main.css`];
+        if (isProd) {
+            postcssArgs.push("--no-map", "--minify");
+        }
+
+        const postcssResult = await $`${postcssArgs}`;
         if (postcssResult.exitCode !== 0) {
             throw new Error("CSS processing failed");
         }
@@ -53,17 +60,17 @@ async function processCSS() {
     }
 }
 
-async function buildJavaScript() {
+async function buildJavaScript(isProd = false) {
     console.log("Building JavaScript/TypeScript files...");
     try {
         const entrypoints = getEntryPoints();
-        
+
         // Add content scripts explicitly
         const contentScripts = [
             join(srcDir, 'content-scripts/clickSimulator.ts'),
             join(srcDir, 'content-scripts/pageInteractions.ts')
         ];
-        
+
         contentScripts.forEach(script => {
             if (!entrypoints.includes(script)) {
                 entrypoints.push(script);
@@ -75,7 +82,7 @@ async function buildJavaScript() {
         const result = await Bun.build({
             entrypoints,
             outdir: distDir,
-            minify: false,
+            minify: isProd, // Enable minification for production
             target: 'browser',
         });
 
@@ -104,7 +111,7 @@ async function copyStaticFiles() {
             // Skip CSS files and TypeScript/JavaScript files as they are handled separately
             if (file.includes('styles/main.css')) continue;
             if (file.endsWith('.ts') || file.endsWith('.js')) continue;
-            
+
             if (staticFileExtensions.includes(ext)) {
                 const srcPath = join(srcDir, file);
                 const destPath = join(distDir, file);
@@ -130,34 +137,52 @@ async function copyStaticFiles() {
     }
 }
 
-async function build() {
+async function createZip() {
+    console.log("Creating ZIP archive...");
+    try {
+        const zipFilePath = join(distDir, 'chrome_extension.zip');
+        await $`zip -r ${zipFilePath} ${distDir}/*`;
+        console.log("ZIP archive created successfully");
+    } catch (error) {
+        console.error("Error creating ZIP archive:", error);
+        throw error;
+    }
+}
+
+async function build(isProd = false) {
     try {
         await cleanDist();
         await Promise.all([
-            processCSS(),
-            buildJavaScript(),
+            processCSS(isProd),
+            buildJavaScript(isProd),
             copyStaticFiles()
         ]);
         console.log("Build completed successfully!");
+
+        if (isProd) {
+            await createZip();
+        }
     } catch (error) {
         console.error("Build failed:", error);
         process.exit(1);
     }
 }
 
-// Handle watch mode
+// Handle different build modes based on arguments
 if (process.argv.includes("--watch")) {
     build().then(() => {
         console.log("Watching for changes...");
-        
+
         // Watch the src directory
         watch(srcDir, { recursive: true }, async (event, filename) => {
             if (!filename) return;
-            
+
             console.log(`File ${filename} changed. Rebuilding...`);
             await build();
         });
     });
+} else if (process.argv.includes("--prod")) {
+    build(true);
 } else {
     build();
 }
