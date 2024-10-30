@@ -80,21 +80,19 @@ export function Settings({ onKeySubmit }: SettingsProps) {
             Welcome to Web Copilot AI
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
-            Please enter your Anthropic API key to get started.
-            You can find your API key in the{' '}
-            <a 
+            Enter your <a 
               href="https://console.anthropic.com/settings/keys" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-blue-500 hover:text-blue-600 dark:text-blue-400"
             >
-              Anthropic Console
-            </a>.
+              Anthropic API key
+            </a> to get started.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-4 flex flex-col items-center">
+          <div className="space-y-2 w-full">
             <Input
               type="password"
               placeholder="sk-ant-api..."
@@ -111,10 +109,10 @@ export function Settings({ onKeySubmit }: SettingsProps) {
 
           <Button
             type="submit"
-            className="w-full"
+            className="border border-gray-300 dark:border-gray-700"
             disabled={!apiKey || isValidating}
           >
-            {isValidating ? 'Validating...' : 'Save API Key'}
+            {isValidating ? 'Validating...' : 'Save'}
           </Button>
         </form>
       </div>
