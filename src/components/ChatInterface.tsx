@@ -353,9 +353,16 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Web Copilot AI</h2>
+    <div className="flex flex-col h-screen">
+      <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center">
+          <img 
+            src={chrome.runtime.getURL("public/logo_256.png")}
+            alt="App Logo"
+            className="w-12 h-12 mr-2"
+          />
+          <h1 className="text-xl font-semibold">Web Copilot AI</h1>
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -367,97 +374,98 @@ export function ChatInterface() {
           <span className="sr-only">Settings</span>
         </Button>
       </div>
-
-      <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
-        {messages.map((message) => (
-          <div 
-            key={message.id} 
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+      <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4">
+        <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
+          {messages.map((message) => (
             <div 
-              className={`rounded-lg p-4 shadow-md ${
-                message.role === 'user' 
-                  ? 'bg-blue-500 text-white max-w-[85%] min-w-0'
-                  : 'bg-transparent dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-full'
-              }`}
+              key={message.id} 
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.role === 'user' ? (
-                <div className="whitespace-pre-wrap break-all">{message.content}</div>
-              ) : (
-                <>
-                  <MessageContent 
-                    content={message.content} 
-                    onOptionSelect={handleOptionSelect} 
-                  />
-                  {message.toolInvocations && renderToolInvocations(message.toolInvocations)}
-                </>
-              )}
+              <div 
+                className={`rounded-lg p-4 shadow-md ${
+                  message.role === 'user' 
+                    ? 'bg-blue-500 text-white max-w-[85%] min-w-0'
+                    : 'bg-transparent dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-full'
+                }`}
+              >
+                {message.role === 'user' ? (
+                  <div className="whitespace-pre-wrap break-all">{message.content}</div>
+                ) : (
+                  <>
+                    <MessageContent 
+                      content={message.content} 
+                      onOptionSelect={handleOptionSelect} 
+                    />
+                    {message.toolInvocations && renderToolInvocations(message.toolInvocations)}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-      
-      <div>
-        <form onSubmit={handleChatSubmit} className="relative">
-          <Button
-            type="submit"
-            onClick={handleSendClick}
-            disabled={!chatInput.trim() && !isLoading}
-            size="icon"
-            className={cn(
-              "absolute right-2 top-2 w-8 h-8 rounded-xl",
-              isLoading 
-                ? "bg-black text-white" 
-                : chatInput.trim()
-                  ? "bg-black text-white hover:bg-gray-800"
-                  : "bg-gray-200 text-gray-400 border border-gray-300"
-            )}
-          >
-            {isLoading ? (
-              <Square className="w-3.5 h-3.5" />
-            ) : (
-              <ArrowUp className="w-3.5 h-3.5 stroke-[3]" />
-            )}
-            <span className="sr-only">{isLoading ? 'Stop' : 'Send'}</span>
-          </Button>
-          <Textarea
-            ref={textareaRef}
-            value={chatInput}
-            onChange={handleChatInputChange}
-            onKeyDown={handleKeyDown}
-            className="h-[10vh] max-h-[10vh] resize-none pr-14 rounded-xl"
-            placeholder="What do you need help with?"
-          />
-        </form>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          {error && (
-            <div className="text-red-500">
-              Error: {error.cause ? JSON.stringify(error.cause) : error.message}
-            </div>
-          )}
+          ))}
+          <div ref={messagesEndRef} />
         </div>
         
-        <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
-          <span>v{manifest.version}</span>
-          <span>•</span>
-          <a 
-            href="https://x.com/hahahahohohe" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            𝕏
-          </a>
-          <span>•</span>
-          <a 
-            href="https://buymeacoffee.com/anzorq" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            Buy me a coffee
-          </a>
+        <div>
+          <form onSubmit={handleChatSubmit} className="relative">
+            <Button
+              type="submit"
+              onClick={handleSendClick}
+              disabled={!chatInput.trim() && !isLoading}
+              size="icon"
+              className={cn(
+                "absolute right-2 top-2 w-8 h-8 rounded-xl",
+                isLoading 
+                  ? "bg-black text-white" 
+                  : chatInput.trim()
+                    ? "bg-black text-white hover:bg-gray-800"
+                    : "bg-gray-200 text-gray-400 border border-gray-300"
+              )}
+            >
+              {isLoading ? (
+                <Square className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowUp className="w-3.5 h-3.5 stroke-[3]" />
+              )}
+              <span className="sr-only">{isLoading ? 'Stop' : 'Send'}</span>
+            </Button>
+            <Textarea
+              ref={textareaRef}
+              value={chatInput}
+              onChange={handleChatInputChange}
+              onKeyDown={handleKeyDown}
+              className="h-[10vh] max-h-[10vh] resize-none pr-14 rounded-xl"
+              placeholder="What do you need help with?"
+            />
+          </form>
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            {error && (
+              <div className="text-red-500">
+                Error: {error.cause ? JSON.stringify(error.cause) : error.message}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
+            <span>v{manifest.version}</span>
+            <span>•</span>
+            <a 
+              href="https://x.com/hahahahohohe" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              𝕏
+            </a>
+            <span>•</span>
+            <a 
+              href="https://buymeacoffee.com/anzorq" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Buy me a coffee
+            </a>
+          </div>
         </div>
       </div>
     </div>

@@ -73,7 +73,14 @@ export function Settings({ onKeySubmit }: SettingsProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-white dark:bg-gray-900">
+    <div className="container mx-auto p-4">
+      <div className="flex items-center justify-center mb-6">
+        <img 
+          src={chrome.runtime.getURL("public/logo_256.png")}
+          alt="App Logo"
+          className="w-16 h-16 mb-4"
+        />
+      </div>
       <div className="w-full max-w-md space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
