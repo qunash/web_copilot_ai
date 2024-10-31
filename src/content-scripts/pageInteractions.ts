@@ -35,7 +35,7 @@ window.webCopilotTools = {
         }
         
         // For contenteditable elements
-        if (activeElement.isContentEditable) {
+        if ((activeElement as HTMLElement).isContentEditable) {
             // Create text node
             const textNode = document.createTextNode(text);
             
@@ -70,66 +70,30 @@ window.webCopilotTools = {
     },
 
     handleKeyPress(key: string, modifiers: string[] = []): string {
-        const activeElement = document.activeElement || document.body;
+        const modifierState = {
+            ctrl: modifiers.includes('Control'),
+            alt: modifiers.includes('Alt'),
+            shift: modifiers.includes('Shift'),
+            meta: modifiers.includes('Meta')
+        };
 
-        if (activeElement instanceof HTMLInputElement ||
-            activeElement instanceof HTMLTextAreaElement) {
+        const eventOptions: KeyboardEventInit = {
+            key,
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            ctrlKey: modifierState.ctrl,
+            altKey: modifierState.alt,
+            shiftKey: modifierState.shift,
+            metaKey: modifierState.meta
+        };
 
-            if (key === 'Enter' && activeElement.form) {
-                activeElement.form.submit();
-                return 'Form submitted';
-            } else if (key === 'Tab') {
-                const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-                const elements = Array.from(document.querySelectorAll(focusableElements));
-                const index = elements.indexOf(activeElement);
-                const nextElement = elements[index + 1] || elements[0];
-                (nextElement as HTMLElement).focus();
-                return 'Moved focus to next element';
-            } else if (key === 'Backspace') {
-                const start = activeElement.selectionStart || 0;
-                const end = activeElement.selectionEnd || 0;
-                if (start === end) {
-                    activeElement.value = activeElement.value.slice(0, start - 1) +
-                        activeElement.value.slice(end);
-                    activeElement.setSelectionRange(start - 1, start - 1);
-                } else {
-                    activeElement.value = activeElement.value.slice(0, start) +
-                        activeElement.value.slice(end);
-                    activeElement.setSelectionRange(start, start);
-                }
-                return 'Deleted text';
-            }
-        }
+        // Dispatch events at document level
+        document.dispatchEvent(new KeyboardEvent('keydown', eventOptions));
+        document.dispatchEvent(new KeyboardEvent('keypress', eventOptions));
+        document.dispatchEvent(new KeyboardEvent('keyup', eventOptions));
 
-        const scrollAmount = 40;
-        switch (key) {
-            case 'ArrowUp':
-                window.scrollBy(0, -scrollAmount);
-                return 'Scrolled up';
-            case 'ArrowDown':
-                window.scrollBy(0, scrollAmount);
-                return 'Scrolled down';
-            case 'ArrowLeft':
-                window.scrollBy(-scrollAmount, 0);
-                return 'Scrolled left';
-            case 'ArrowRight':
-                window.scrollBy(scrollAmount, 0);
-                return 'Scrolled right';
-            case 'PageUp':
-                window.scrollBy(0, -window.innerHeight);
-                return 'Scrolled up one page';
-            case 'PageDown':
-                window.scrollBy(0, window.innerHeight);
-                return 'Scrolled down one page';
-            case 'Home':
-                window.scrollTo(0, 0);
-                return 'Scrolled to top';
-            case 'End':
-                window.scrollTo(0, document.body.scrollHeight);
-                return 'Scrolled to bottom';
-            default:
-                return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
-        }
+        return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
     },
 
     scrollAtPosition(x: number, y: number, deltaY: number): string {
