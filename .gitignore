@@ -173,3 +173,10 @@ dist
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Exclude zip files
+*.zip
+
+# Or more specifically, if you have a dist/build folder
+/dist/*.zip
+/build/*.zip
