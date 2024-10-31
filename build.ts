@@ -140,8 +140,13 @@ async function copyStaticFiles() {
 async function createZip() {
     console.log("Creating ZIP archive...");
     try {
-        const zipFilePath = join(distDir, 'chrome_extension.zip');
-        await $`zip -r ${zipFilePath} ${distDir}/*`;
+        // Change working directory to dist before creating zip
+        process.chdir(distDir);
+        const zipFilePath = '../chrome_extension.zip';
+        // Zip all files in current directory without including the directory name
+        await $`zip -r ${zipFilePath} ./*`;
+        // Change back to original directory
+        process.chdir('..');
         console.log("ZIP archive created successfully");
     } catch (error) {
         console.error("Error creating ZIP archive:", error);
