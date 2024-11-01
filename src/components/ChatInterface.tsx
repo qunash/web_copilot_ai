@@ -4,7 +4,7 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useMemo, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -19,14 +19,34 @@ const INITIAL_MESSAGE = {
 };
 
 const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  
   const content = useMemo(() => {
     const toolInfo = (
-      <div className="font-mono text-xs mb-1 text-gray-500 dark:text-gray-400 break-all">
-        {tool.toolName}({
-          Object.entries(tool.args)
-            .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-            .join(', ')
-        })
+      <div 
+        className={cn(
+          "font-mono text-xs mb-1 text-gray-500 dark:text-gray-400 break-all",
+          "flex items-center gap-2 cursor-pointer",
+          tool.toolName !== 'take_screenshot' && "hover:text-gray-700 dark:hover:text-gray-300"
+        )}
+        onClick={() => {
+          if (tool.toolName !== 'take_screenshot') {
+            setIsCollapsed(!isCollapsed);
+          }
+        }}
+      >
+        {tool.toolName !== 'take_screenshot' && (
+          <span className="flex-shrink-0">
+            {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </span>
+        )}
+        <span>
+          {tool.toolName}({
+            Object.entries(tool.args)
+              .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+              .join(', ')
+          })
+        </span>
       </div>
     );
 
@@ -60,11 +80,13 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
       return (
         <>
           {toolInfo}
-          <div className="mt-1 text-sm">
-            <pre className="whitespace-pre-wrap break-all overflow-hidden">
-              {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-            </pre>
-          </div>
+          {!isCollapsed && (
+            <div className="mt-1 text-sm">
+              <pre className="whitespace-pre-wrap break-all overflow-hidden">
+                {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+              </pre>
+            </div>
+          )}
         </>
       );
     }
@@ -72,12 +94,14 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
     return (
       <>
         {toolInfo}
-        <div className="mt-1 text-sm">
-          <span>{tool.state === 'partial-call' ? tool.state : 'Processing...'}</span>
-        </div>
+        {!isCollapsed && (
+          <div className="mt-1 text-sm">
+            <span>{tool.state === 'partial-call' ? tool.state : 'Processing...'}</span>
+          </div>
+        )}
       </>
     );
-  }, [tool]);
+  }, [tool, isCollapsed]);
 
   return (
     <div className="text-sm font-normal bg-gray-100 dark:bg-gray-800 p-3 rounded-lg shadow-sm max-w-full">
