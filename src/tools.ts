@@ -13,27 +13,19 @@ export const browserTools = {
             ? [{ type: 'text', text: result }]
             : [{ type: 'image', data: result.data, mimeType: 'image/webp' }];
         },
-
     }),
 
     click: tool({
-        description: 'Clicks at the specified coordinates on the current webpage. Coordinates should be provided as "x:y" where x and y are pixel values.',
+        description: "Simulate a mouse click at specific coordinates on the page. Supports single, double, and triple clicks.",
         parameters: z.object({
-            coordinates: z.string().describe('Coordinates in the format "x:y" (e.g. "100:200")')
+            coordinates: z.string().describe("The coordinates to click at in the format 'x:y' (e.g. '100:200')"),
+            clickType: z.enum(['single', 'double', 'triple'])
+                .default('single')
+                .describe("Type of click to perform. 'single' for normal click, 'double' for double-click, 'triple' for triple-click (useful for selecting all the existing text in a text input field, for example when you want to replace it with new text)")
         }),
-        args: {
-            coordinates: { type: 'string', description: 'Coordinates in the format "x:y" (e.g. "100:200")' }
-        },
-        execute: async ({ coordinates }, { abortSignal } = {}) => {
-            if (!coordinates) {
-                return 'Missing required click coordinates';
-            }
-            try {
-                const [x, y] = coordinates.split(':').map(Number);
-                return simulateClick(x, y);
-            } catch (error) {
-                return `Failed to click at coordinates ${coordinates}: ${error}`;
-            }
+        execute: async ({ coordinates, clickType = 'single' }) => {
+            const [x, y] = coordinates.split(':').map(Number);
+            return simulateClick(x, y, clickType);
         }
     }),
 
@@ -137,7 +129,7 @@ export const browserTools = {
             return scrollAtPosition(x, y, deltaY);
         }
     }),
-};
+} as const;
 
 // Move the implementation functions outside of the browserTools object
 async function takeScreenshot(): Promise<{ data: string } | string> {
@@ -221,7 +213,8 @@ async function sendContentScriptMessage<T>(message: { type: string; payload?: an
     }
 }
 
-async function simulateClick(x: number, y: number): Promise<string> {
+// Update the simulateClick function to support click types
+async function simulateClick(x: number, y: number, clickType: 'single' | 'double' | 'triple' = 'single'): Promise<string> {
     if (isNaN(x) || isNaN(y)) {
         return 'Invalid coordinate format. Expected "x:y" where x and y are numbers';
     }
@@ -229,7 +222,10 @@ async function simulateClick(x: number, y: number): Promise<string> {
     try {
         const response = await sendContentScriptMessage<string>({
             type: 'SIMULATE_CLICK',
-            payload: { coordinates: `${x}:${y}` }  // Updated to use new format
+            payload: { 
+                coordinates: `${x}:${y}`,
+                clickType
+            }
         });
         return response;
     } catch (error) {
@@ -237,7 +233,7 @@ async function simulateClick(x: number, y: number): Promise<string> {
             ? error.message 
             : 'Unknown error occurred during click operation';
         console.error('Click operation failed:', error);
-        return `Failed to click at coordinates (${x}, ${y}): ${errorMessage}`;
+        return `Failed to ${clickType} click at coordinates (${x}, ${y}): ${errorMessage}`;
     }
 }
 
