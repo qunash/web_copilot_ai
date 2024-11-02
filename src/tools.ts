@@ -1,17 +1,18 @@
 import { z } from 'zod';
-import { tool, type CoreToolResult } from 'ai';
+import { tool } from 'ai';
 
 export const browserTools = {
     take_screenshot: tool({
         description: 'Takes a screenshot of the current tab and returns it as a base64 encoded image',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | string> => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return takeScreenshot();
         },
         experimental_toToolResultContent(result) {
-            return typeof result === 'string'
-            ? [{ type: 'text', text: result }]
-            : [{ type: 'image', data: result.data, mimeType: 'image/webp' }];
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'image', data: result.data, mimeType: 'image/webp' }];
         },
     }),
 
@@ -23,10 +24,24 @@ export const browserTools = {
                 .default('single')
                 .describe("Type of click to perform. 'single' for normal click, 'double' for double-click, 'triple' for triple-click (useful for selecting all the existing text in a text input field, for example when you want to replace it with new text)")
         }),
-        execute: async ({ coordinates, clickType = 'single' }) => {
+        execute: async ({ coordinates, clickType = 'single' }): Promise<{ data: string } | { error: string }> => {
             const [x, y] = coordinates.split(':').map(Number);
+            if (isNaN(x) || isNaN(y)) {
+                return { error: 'Invalid coordinate format. Expected "x:y" where x and y are numbers' };
+            }
+        
+            if (clickType !== 'single' && clickType !== 'double' && clickType !== 'triple') {
+                return { error: 'Invalid click type. Expected "single", "double", or "triple"' };
+            }
+
             return simulateClick(x, y, clickType);
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     navigate: tool({
@@ -34,57 +49,104 @@ export const browserTools = {
         parameters: z.object({
             url: z.string().describe('Complete URL to navigate to (must include http:// or https://)')
         }),
-        execute: async ({ url }, { abortSignal } = {}) => {
+        execute: async ({ url }, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
+
+            if (!url || !url.match(/^https?:\/\//)) {
+                return { error: 'Invalid URL' };
+            }
+            
             return navigateToUrl(url);
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     page_down: tool({
         description: 'Presses the Page Down key',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return pageDown();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     page_up: tool({
         description: 'Presses the Page Up key',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return pageUp();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     refresh: tool({
         description: 'Refreshes the current webpage',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return refreshPage();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     close_tab: tool({
         description: 'Closes the current browser tab',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return closeTab();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     go_back: tool({
         description: 'Navigate to the previous page in browser history',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return goBack();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     go_forward: tool({
         description: 'Navigate to the next page in browser history',
         parameters: z.object({}),
-        execute: async (_, { abortSignal } = {}) => {
+        execute: async (_, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             return goForward();
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     type_text: tool({
@@ -92,12 +154,18 @@ export const browserTools = {
         parameters: z.object({
             text: z.string().describe('The text to type')
         }),
-        execute: async ({ text }, { abortSignal } = {}) => {
+        execute: async ({ text }, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             if (!text) {
-                return 'Missing required text to type';
+                return { error: 'Missing required text to type' };
             }
             return typeText(text);
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     press_key: tool({
@@ -107,12 +175,18 @@ export const browserTools = {
             modifiers: z.array(z.enum(['ctrl', 'alt', 'shift', 'meta'])).optional()
                 .describe('Optional modifier keys to hold while pressing the key')
         }),
-        execute: async ({ key, modifiers }, { abortSignal } = {}) => {
+        execute: async ({ key, modifiers }, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             if (!key) {
-                return 'Missing required key to press';
+                return { error: 'Missing required key to press' };
             }
             return pressKey(key, modifiers);
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 
     scroll_at_position: tool({
@@ -122,17 +196,23 @@ export const browserTools = {
             y: z.number().describe('Y coordinate on the page (in pixels)'),
             deltaY: z.number().describe('Amount to scroll: positive for down, negative for up')
         }),
-        execute: async ({ x, y, deltaY }, { abortSignal } = {}) => {
+        execute: async ({ x, y, deltaY }, { abortSignal } = {}): Promise<{ data: string } | { error: string }> => {
             if (isNaN(x) || isNaN(y) || isNaN(deltaY)) {
-                return 'Invalid coordinate or deltaY format. Expected numbers.';
+                return { error: 'Invalid coordinate or deltaY format. Expected numbers.' };
             }
             return scrollAtPosition(x, y, deltaY);
-        }
+        },
+        experimental_toToolResultContent(result) {
+            if ('error' in result) {
+                return [{ type: 'text', text: result.error }];
+            }
+            return [{ type: 'text', text: result.data }];
+        },
     }),
 } as const;
 
 // Move the implementation functions outside of the browserTools object
-async function takeScreenshot(): Promise<{ data: string } | string> {
+async function takeScreenshot(): Promise<{ data: string } | { error: string }> {
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) {
@@ -140,12 +220,12 @@ async function takeScreenshot(): Promise<{ data: string } | string> {
         }
 
         if (tab.url?.startsWith('chrome://')) {
-            return 'Cannot take screenshot of `chrome://` pages due to browser security restrictions';
+            return { error: 'Cannot take screenshot of `chrome://` pages due to browser security restrictions' };
         }
 
         const zoomFactor = await chrome.tabs.getZoom(tab.id);
         const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: 'png', quality: 80 });
-        
+
         if (!dataUrl) {
             throw new Error('Failed to capture screenshot');
         }
@@ -174,7 +254,7 @@ async function takeScreenshot(): Promise<{ data: string } | string> {
 
         return { data: base64Data };
     } catch (error) {
-        return `Failed to take screenshot: ${error}`;
+        return { error: `Failed to take screenshot: ${error}` };
     }
 }
 
@@ -194,7 +274,7 @@ async function sendContentScriptMessage<T>(message: { type: string; payload?: an
 
     try {
         const response = await chrome.tabs.sendMessage(tab.id, message) as ContentScriptResponse<T>;
-        
+
         if (typeof response === 'string') {
             return response;
         }
@@ -206,153 +286,186 @@ async function sendContentScriptMessage<T>(message: { type: string; payload?: an
         return response.result?.toString() || 'Operation completed';
     } catch (error) {
         // Handle both chrome.runtime.lastError and regular errors
-        const errorMessage = error instanceof Error 
-                ? error.message 
-                : 'Unknown error';
+        const errorMessage = error instanceof Error
+            ? error.message
+            : 'Unknown error';
         throw new Error(`Content script communication failed: ${errorMessage}`);
     }
 }
 
 // Update the simulateClick function to support click types
-async function simulateClick(x: number, y: number, clickType: 'single' | 'double' | 'triple' = 'single'): Promise<string> {
-    if (isNaN(x) || isNaN(y)) {
-        return 'Invalid coordinate format. Expected "x:y" where x and y are numbers';
-    }
-    
+async function simulateClick(x: number, y: number, clickType: 'single' | 'double' | 'triple' = 'single'): Promise<{ data: string } | { error: string }> {
     try {
         const response = await sendContentScriptMessage<string>({
             type: 'SIMULATE_CLICK',
-            payload: { 
+            payload: {
                 coordinates: `${x}:${y}`,
                 clickType
             }
         });
-        return response;
+        return { data: response };
     } catch (error) {
-        const errorMessage = error instanceof Error 
-            ? error.message 
+        const errorMessage = error instanceof Error
+            ? error.message
             : 'Unknown error occurred during click operation';
         console.error('Click operation failed:', error);
-        return `Failed to ${clickType} click at coordinates (${x}, ${y}): ${errorMessage}`;
+        return { error: `Failed to ${clickType} click at coordinates (${x}, ${y}): ${errorMessage}` };
     }
 }
 
-async function navigateToUrl(url: string): Promise<string> {
-    const tab = await chrome.tabs.create({ url });
-    if (!tab.id) {
-        return `Failed to create new tab`;
-    }
-
-    // Wait for the page to finish loading
-    return new Promise((resolve) => {
-        function listener(
-            tabId: number,
-            changeInfo: { status?: string },
-            tab: chrome.tabs.Tab
-        ) {
-            if (tabId === tab.id && changeInfo.status === 'complete') {
-                // Remove the listener once we're done
-                chrome.tabs.onUpdated.removeListener(listener);
-                resolve(`Successfully loaded page: ${url}`);
-            }
+// Update return types for all tools
+async function navigateToUrl(url: string): Promise<{ data: string } | { error: string }> {
+    try {
+        const tab = await chrome.tabs.create({ url });
+        if (!tab.id) {
+            return { error: 'Failed to create new tab' };
         }
 
-        // Add listener for tab updates
-        chrome.tabs.onUpdated.addListener(listener);
+        // Wait for the page to finish loading
+        return new Promise((resolve) => {
+            function listener(
+                tabId: number,
+                changeInfo: { status?: string },
+                tab: chrome.tabs.Tab
+            ) {
+                if (tabId === tab.id && changeInfo.status === 'complete') {
+                    chrome.tabs.onUpdated.removeListener(listener);
+                    resolve({ data: `Successfully loaded page: ${url}` });
+                }
+            }
 
-        // Set a timeout in case the page takes too long to load
-        setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(listener);
-            resolve(`Opened new tab with URL: ${url} (timeout reached)`);
-        }, 30000); // 30 second timeout
-    });
-}
+            chrome.tabs.onUpdated.addListener(listener);
 
-async function pageDown(): Promise<string> {
-    return sendContentScriptMessage({
-        type: 'SCROLL_PAGE',
-        payload: { direction: 'down' }
-    });
-}
-
-async function pageUp(): Promise<string> {
-    return sendContentScriptMessage({
-        type: 'SCROLL_PAGE',
-        payload: { direction: 'up' }
-    });
-}
-
-async function refreshPage(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
+            setTimeout(() => {
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve({ data: `Opened new tab with URL: ${url} (timeout reached)` });
+            }, 30000);
+        });
+    } catch (error) {
+        return { error: `Failed to navigate to ${url}: ${error}` };
     }
-
-    await chrome.tabs.reload(tab.id);
-    return 'Page refreshed successfully';
 }
 
-async function closeTab(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
+async function pageDown(): Promise<{ data: string } | { error: string }> {
+    try {
+        const response = await sendContentScriptMessage({
+            type: 'SCROLL_PAGE',
+            payload: { direction: 'down' }
+        });
+        return { data: response };
+    } catch (error) {
+        return { error: `Failed to scroll page down: ${error}` };
     }
-
-    await chrome.tabs.remove(tab.id);
-    return 'Tab closed successfully';
 }
 
-async function goBack(): Promise<string> {
+async function pageUp(): Promise<{ data: string } | { error: string }> {
+    try {
+        const response = await sendContentScriptMessage({
+            type: 'SCROLL_PAGE',
+            payload: { direction: 'up' }
+        });
+        return { data: response };
+    } catch (error) {
+        return { error: `Failed to scroll page up: ${error}` };
+    }
+}
+
+async function refreshPage(): Promise<{ data: string } | { error: string }> {
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) {
-        return 'No active tab found';
+            return { error: 'No active tab found' };
+        }
+
+        await chrome.tabs.reload(tab.id);
+        return { data: 'Page refreshed successfully' };
+    } catch (error) {
+        return { error: `Failed to refresh page: ${error}` };
+    }
+}
+
+async function closeTab(): Promise<{ data: string } | { error: string }> {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+            return { error: 'No active tab found' };
+        }
+
+        await chrome.tabs.remove(tab.id);
+        return { data: 'Tab closed successfully' };
+    } catch (error) {
+        return { error: `Failed to close tab: ${error}` };
+    }
+}
+
+async function goBack(): Promise<{ data: string } | { error: string }> {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+            return { error: 'No active tab found' };
         }
 
         await chrome.tabs.goBack(tab.id);
-        return 'Navigated back successfully';
+        return { data: 'Navigated back successfully' };
     } catch (error) {
-        return `Failed to navigate back: ${error}`;
+        return { error: `Failed to navigate back: ${error}` };
     }
 }
 
-async function goForward(): Promise<string> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-        throw new Error('No active tab found');
+async function goForward(): Promise<{ data: string } | { error: string }> {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+            return { error: 'No active tab found' };
+        }
+
+        await chrome.tabs.goForward(tab.id);
+        return { data: 'Navigated forward successfully' };
+    } catch (error) {
+        return { error: `Failed to navigate forward: ${error}` };
+    }
+}
+
+async function typeText(text: string): Promise<{ data: string } | { error: string }> {
+    try {
+        const response = await sendContentScriptMessage({
+            type: 'TYPE_TEXT',
+            payload: { text }
+        });
+        return { data: response };
+    } catch (error) {
+        return { error: `Failed to type text: ${error}` };
+    }
+}
+
+async function pressKey(key: string, modifiers: string[] = []): Promise<{ data: string } | { error: string }> {
+    try {
+        const response = await sendContentScriptMessage({
+            type: 'PRESS_KEY',
+            payload: { key, modifiers }
+        });
+        return { data: response };
+    } catch (error) {
+        return { error: `Failed to press key ${key}: ${error}` };
+    }
+}
+
+async function scrollAtPosition(x: number, y: number, deltaY: number): Promise<{ data: string } | { error: string }> {
+    if (isNaN(x) || isNaN(y) || isNaN(deltaY)) {
+        return { error: 'Invalid coordinate or deltaY format. Expected numbers.' };
     }
 
-    await chrome.tabs.goForward(tab.id);
-    return 'Navigated forward successfully';
-}
-
-async function typeText(text: string): Promise<string> {
-    return sendContentScriptMessage({
-        type: 'TYPE_TEXT',
-        payload: { text }
-    });
-}
-
-async function pressKey(key: string, modifiers: string[] = []): Promise<string> {
-    return sendContentScriptMessage({
-        type: 'PRESS_KEY',
-        payload: { key, modifiers }
-    });
-}
-
-async function scrollAtPosition(x: number, y: number, deltaY: number): Promise<string> {
     try {
         const response = await sendContentScriptMessage<string>({
             type: 'SCROLL_AT_POSITION',
             payload: { x, y, deltaY }
         });
-        return response;
+        return { data: response };
     } catch (error) {
-        const errorMessage = error instanceof Error 
-            ? error.message 
+        const errorMessage = error instanceof Error
+            ? error.message
             : 'Unknown error occurred during scroll operation';
-        console.error('Scroll operation failed:', error);
-        return `Failed to scroll at coordinates (${x}, ${y}): ${errorMessage}`;
+        return { error: `Failed to scroll at coordinates (${x}, ${y}): ${errorMessage}` };
     }
 }
 

@@ -19,23 +19,30 @@ const INITIAL_MESSAGE = {
 };
 
 const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const hasError = tool.state === 'result' && 
+    'result' in tool && 
+    typeof tool.result === 'object' && 
+    'error' in tool.result;
+
+  const [isCollapsed, setIsCollapsed] = useState(
+    !(tool.toolName === 'take_screenshot' || hasError)
+  );
   
   const content = useMemo(() => {
     const toolInfo = (
       <div 
         className={cn(
           "font-mono text-xs mb-1 text-gray-500 dark:text-gray-400 break-all",
-          "flex items-center gap-2 cursor-pointer",
-          tool.toolName !== 'take_screenshot' && "hover:text-gray-700 dark:hover:text-gray-300"
+          "flex items-center gap-2",
+          (!hasError && tool.toolName !== 'take_screenshot') && "cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
         )}
         onClick={() => {
-          if (tool.toolName !== 'take_screenshot') {
+          if (!hasError && tool.toolName !== 'take_screenshot') {
             setIsCollapsed(!isCollapsed);
           }
         }}
       >
-        {tool.toolName !== 'take_screenshot' && (
+        {!hasError && tool.toolName !== 'take_screenshot' && (
           <span className="flex-shrink-0">
             {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </span>
@@ -54,7 +61,7 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
       const result = tool.result;
       
       if (tool.toolName === 'take_screenshot') {
-        if (result.error) {
+        if ('error' in result) {
           return (
             <>
               {toolInfo}
@@ -63,7 +70,7 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
           );
         }
         
-        if (result.data) {
+        if ('data' in result) {
           return (
             <>
               {toolInfo}
@@ -77,13 +84,26 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
         }
       }
 
+      // Handle error case for all tools
+      if ('error' in result) {
+        return (
+          <>
+            {toolInfo}
+            <div className="mt-1 text-sm text-red-500">
+              {result.error}
+            </div>
+          </>
+        );
+      }
+
+      // Handle success case
       return (
         <>
           {toolInfo}
-          {!isCollapsed && (
+          {(!isCollapsed || hasError) && (
             <div className="mt-1 text-sm">
               <pre className="whitespace-pre-wrap break-all overflow-hidden">
-                {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+                {'data' in result ? result.data : JSON.stringify(result, null, 2)}
               </pre>
             </div>
           )}
@@ -101,7 +121,7 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
         )}
       </>
     );
-  }, [tool, isCollapsed]);
+  }, [tool, isCollapsed, hasError]);
 
   return (
     <div className="text-sm font-normal bg-gray-100 dark:bg-gray-800 p-3 rounded-lg shadow-sm max-w-full">
@@ -115,21 +135,32 @@ const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
 
   return (
     <div className="mt-3 space-y-2 max-w-full">
-      {toolInvocations.map((tool) => (
-        <div
-          key={tool.toolCallId}
-          className="flex items-start space-x-2 text-gray-600 dark:text-gray-400 max-w-full"
-        >
-          <span 
-            className={`inline-block w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
-              tool.state === 'result' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
-            }`}
-          ></span>
-          <div className="flex-1 min-w-0">
-            <ToolResult tool={tool} />
+      {toolInvocations.map((tool) => {
+        const hasError = tool.state === 'result' && 
+          'result' in tool && 
+          typeof tool.result === 'object' && 
+          'error' in tool.result;
+
+        return (
+          <div
+            key={tool.toolCallId}
+            className="flex items-start space-x-2 text-gray-600 dark:text-gray-400 max-w-full"
+          >
+            <span 
+              className={`inline-block w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
+                tool.state === 'result' 
+                  ? hasError 
+                    ? 'bg-red-500' 
+                    : 'bg-green-500'
+                  : 'bg-yellow-500 animate-pulse'
+              }`}
+            ></span>
+            <div className="flex-1 min-w-0">
+              <ToolResult tool={tool} />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -413,7 +444,7 @@ export function ChatInterface() {
                 }`}
               >
                 {message.role === 'user' ? (
-                  <div className="whitespace-pre-wrap break-all">{message.content}</div>
+                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
                 ) : (
                   <>
                     <MessageContent 
