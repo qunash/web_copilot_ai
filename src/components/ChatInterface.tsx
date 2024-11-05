@@ -422,7 +422,7 @@ export function ChatInterface() {
             alt="App Logo"
             className="w-12 h-12 mr-2"
           />
-          <h1 className="text-xl font-semibold">Web Copilot AI</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Web Copilot AI</h1>
         </div>
         <Button
           variant="ghost"
@@ -435,7 +435,7 @@ export function ChatInterface() {
           <span className="sr-only">Settings</span>
         </Button>
       </div>
-      <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4">
+      <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4 overflow-hidden">
         <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
           {messages.map((message) => (
             <div 
