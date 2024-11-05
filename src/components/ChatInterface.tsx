@@ -473,7 +473,7 @@ export function ChatInterface() {
                   ? "bg-black text-white" 
                   : chatInput.trim()
                     ? "bg-black text-white hover:bg-gray-800"
-                    : "bg-gray-200 text-gray-400 border border-gray-300"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-400 border border-gray-300 dark:border-gray-600"
               )}
             >
               {isLoading ? (
@@ -488,7 +488,7 @@ export function ChatInterface() {
               value={chatInput}
               onChange={handleChatInputChange}
               onKeyDown={handleKeyDown}
-              className="h-[10vh] max-h-[10vh] resize-none pr-14 rounded-xl"
+              className="h-[10vh] max-h-[10vh] resize-none pr-14 rounded-xl dark:text-white dark:bg-gray-700 dark:border-gray-600"
               placeholder="What do you need help with?"
             />
           </form>
