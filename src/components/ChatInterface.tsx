@@ -4,7 +4,7 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useMemo, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon, ChevronDown, ChevronRight, Camera, MousePointer, Globe, ArrowLeft, ArrowRight, RotateCw, X as XIcon, Keyboard, ScrollText } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -16,6 +16,24 @@ const INITIAL_MESSAGE = {
   id: 'initial-message',
   role: 'assistant' as const,
   content: "Hello! I'm your AI web assistant. I can help you interact with web pages, extract information, and perform various tasks. How can I help you today?"
+};
+
+const TOOL_ICONS = {
+  take_screenshot: Camera,
+  click: MousePointer,
+  navigate: Globe,
+  go_back: ArrowLeft,
+  go_forward: ArrowRight,
+  refresh_page: RotateCw,
+  close_tab: XIcon,
+  type_text: Keyboard,
+  press_key: Keyboard,
+  scroll_at_position: ScrollText,
+} as const;
+
+const getToolIcon = (toolName: string) => {
+  const IconComponent = TOOL_ICONS[toolName as keyof typeof TOOL_ICONS];
+  return IconComponent ? <IconComponent className="w-5 h-5" /> : null;
 };
 
 const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
@@ -33,7 +51,7 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
       <div 
         className={cn(
           "font-mono text-xs mb-1 text-gray-500 dark:text-gray-400 break-all",
-          "flex items-center gap-2",
+          "flex gap-2",
           (!hasError && tool.toolName !== 'take_screenshot') && "cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
         )}
         onClick={() => {
@@ -43,9 +61,9 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
         }}
       >
         {!hasError && tool.toolName !== 'take_screenshot' && (
-          <span className="flex-shrink-0">
-            {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </span>
+          <ChevronRight className={cn("w-3 h-3 flex-shrink-0 transition-transform", 
+            !isCollapsed && "rotate-90"
+          )} />
         )}
         <span>
           {tool.toolName}({
@@ -57,64 +75,47 @@ const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
       </div>
     );
 
-    if (tool.state === 'result' && 'result' in tool) {
-      const result = tool.result;
-      
-      if (tool.toolName === 'take_screenshot') {
-        if ('error' in result) {
-          return (
-            <>
-              {toolInfo}
-              <div className="text-red-500">{result.error}</div>
-            </>
-          );
-        }
-        
-        if ('data' in result) {
-          return (
-            <>
-              {toolInfo}
-              <img 
-                src={`data:image/webp;base64,${result.data}`}
-                alt="Screenshot result"
-                className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-700 shadow-md"
-              />
-            </>
-          );
-        }
-      }
-
-      // Handle error case for all tools
-      if ('error' in result) {
+    // For screenshot results
+    if (tool.toolName === 'take_screenshot' && tool.state === 'result' && 'result' in tool) {
+      if ('error' in tool.result) {
         return (
           <>
             {toolInfo}
-            <div className="mt-1 text-sm text-red-500">
-              {result.error}
-            </div>
+            <div className="text-red-500">{tool.result.error}</div>
           </>
         );
       }
-
-      // Handle success case
-      return (
-        <>
-          {toolInfo}
-          {(!isCollapsed || hasError) && (
-            <div className="mt-1 text-sm">
-              <pre className="whitespace-pre-wrap break-all overflow-hidden">
-                {'data' in result ? result.data : JSON.stringify(result, null, 2)}
-              </pre>
-            </div>
-          )}
-        </>
-      );
+      
+      if ('data' in tool.result) {
+        return (
+          <>
+            {toolInfo}
+            <img 
+              src={`data:image/webp;base64,${tool.result.data}`}
+              alt="Screenshot result"
+              className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-700 shadow-md"
+            />
+          </>
+        );
+      }
     }
 
+    // For all other results
     return (
       <>
         {toolInfo}
-        {!isCollapsed && (
+        {(!isCollapsed || hasError) && tool.state === 'result' && 'result' in tool && (
+          <div className="mt-1 text-sm">
+            {hasError ? (
+              <div className="text-red-500">{tool.result.error}</div>
+            ) : (
+              <pre className="whitespace-pre-wrap break-all overflow-hidden">
+                {'data' in tool.result ? tool.result.data : JSON.stringify(tool.result, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+        {!isCollapsed && tool.state !== 'result' && (
           <div className="mt-1 text-sm">
             <span>{tool.state === 'partial-call' ? tool.state : 'Processing...'}</span>
           </div>
@@ -146,15 +147,20 @@ const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
             key={tool.toolCallId}
             className="flex items-start space-x-2 text-gray-600 dark:text-gray-400 max-w-full"
           >
-            <span 
-              className={`inline-block w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
-                tool.state === 'result' 
-                  ? hasError 
-                    ? 'bg-red-500' 
-                    : 'bg-green-500'
-                  : 'bg-yellow-500 animate-pulse'
-              }`}
-            ></span>
+            <div className="flex flex-col items-center gap-1 pt-[0.875rem]">
+              {getToolIcon(tool.toolName)}
+              <div className="h-4 flex items-center">
+                <span 
+                  className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                    tool.state === 'result' 
+                      ? hasError 
+                        ? 'bg-red-500' 
+                        : 'bg-green-500'
+                      : 'bg-yellow-500 animate-pulse'
+                  }`}
+                />
+              </div>
+            </div>
             <div className="flex-1 min-w-0">
               <ToolResult tool={tool} />
             </div>
