@@ -2,173 +2,21 @@
 
 import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
-import { useMemo, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
+import { useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon, ChevronDown, ChevronRight, Camera, MousePointer, Globe, ArrowLeft, ArrowRight, RotateCw, X as XIcon, Keyboard, ScrollText } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ClickableOption } from './ClickableOption';
 import { Settings } from './Settings';
-import manifest from '../manifest.json';
+import { ToolDisplay } from './ToolCall';
+import { ChatFooter } from './ChatFooter';
 
 const INITIAL_MESSAGE = {
   id: 'initial-message',
   role: 'assistant' as const,
   content: "Hello! I'm your AI web assistant. I can help you interact with web pages, extract information, and perform various tasks. How can I help you today?"
-};
-
-const TOOL_ICONS = {
-  take_screenshot: Camera,
-  click: MousePointer,
-  navigate: Globe,
-  go_back: ArrowLeft,
-  go_forward: ArrowRight,
-  refresh_page: RotateCw,
-  close_tab: XIcon,
-  type_text: Keyboard,
-  press_key: Keyboard,
-  scroll_at_position: ScrollText,
-} as const;
-
-const getToolIcon = (toolName: string) => {
-  const IconComponent = TOOL_ICONS[toolName as keyof typeof TOOL_ICONS];
-  return IconComponent ? <IconComponent className="w-5 h-5" /> : null;
-};
-
-const ToolResult = ({ tool }: { tool: ToolInvocation }) => {
-  const hasError = tool.state === 'result' && 
-    'result' in tool && 
-    typeof tool.result === 'object' && 
-    'error' in tool.result;
-
-  const [isCollapsed, setIsCollapsed] = useState(
-    !(tool.toolName === 'take_screenshot' || hasError)
-  );
-  
-  const content = useMemo(() => {
-    const toolInfo = (
-      <div 
-        className={cn(
-          "font-mono text-xs mb-1 text-gray-500 dark:text-gray-400 break-all",
-          "flex gap-2",
-          (!hasError && tool.toolName !== 'take_screenshot') && "cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-        )}
-        onClick={() => {
-          if (!hasError && tool.toolName !== 'take_screenshot') {
-            setIsCollapsed(!isCollapsed);
-          }
-        }}
-      >
-        {!hasError && tool.toolName !== 'take_screenshot' && (
-          <ChevronRight className={cn("w-3 h-3 flex-shrink-0 transition-transform", 
-            !isCollapsed && "rotate-90"
-          )} />
-        )}
-        <span>
-          {tool.toolName}({
-            Object.entries(tool.args)
-              .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-              .join(', ')
-          })
-        </span>
-      </div>
-    );
-
-    // For screenshot results
-    if (tool.toolName === 'take_screenshot' && tool.state === 'result' && 'result' in tool) {
-      if ('error' in tool.result) {
-        return (
-          <>
-            {toolInfo}
-            <div className="text-red-500">{tool.result.error}</div>
-          </>
-        );
-      }
-      
-      if ('data' in tool.result) {
-        return (
-          <>
-            {toolInfo}
-            <img 
-              src={`data:image/webp;base64,${tool.result.data}`}
-              alt="Screenshot result"
-              className="max-w-full rounded-lg mt-2 border border-gray-200 dark:border-gray-700 shadow-md"
-            />
-          </>
-        );
-      }
-    }
-
-    // For all other results
-    return (
-      <>
-        {toolInfo}
-        {(!isCollapsed || hasError) && tool.state === 'result' && 'result' in tool && (
-          <div className="mt-1 text-sm">
-            {hasError ? (
-              <div className="text-red-500">{tool.result.error}</div>
-            ) : (
-              <pre className="whitespace-pre-wrap break-all overflow-hidden">
-                {'data' in tool.result ? tool.result.data : JSON.stringify(tool.result, null, 2)}
-              </pre>
-            )}
-          </div>
-        )}
-        {!isCollapsed && tool.state !== 'result' && (
-          <div className="mt-1 text-sm">
-            <span>{tool.state === 'partial-call' ? tool.state : 'Processing...'}</span>
-          </div>
-        )}
-      </>
-    );
-  }, [tool, isCollapsed, hasError]);
-
-  return (
-    <div className="text-sm font-normal bg-gray-100 dark:bg-gray-800 p-3 rounded-lg shadow-sm max-w-full">
-      {content}
-    </div>
-  );
-};
-
-const renderToolInvocations = (toolInvocations?: ToolInvocation[]) => {
-  if (!toolInvocations?.length) return null;
-
-  return (
-    <div className="mt-3 space-y-2 max-w-full">
-      {toolInvocations.map((tool) => {
-        const hasError = tool.state === 'result' && 
-          'result' in tool && 
-          typeof tool.result === 'object' && 
-          'error' in tool.result;
-
-        return (
-          <div
-            key={tool.toolCallId}
-            className="flex items-start space-x-2 text-gray-600 dark:text-gray-400 max-w-full"
-          >
-            <div className="flex flex-col items-center gap-1 pt-[0.875rem]">
-              {getToolIcon(tool.toolName)}
-              <div className="h-4 flex items-center">
-                <span 
-                  className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                    tool.state === 'result' 
-                      ? hasError 
-                        ? 'bg-red-500' 
-                        : 'bg-green-500'
-                      : 'bg-yellow-500 animate-pulse'
-                  }`}
-                />
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <ToolResult tool={tool} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 };
 
 function parseOptions(content: string): { before: string, options: string[], after: string } {
@@ -200,9 +48,14 @@ function parseOptions(content: string): { before: string, options: string[], aft
   return { before, options, after };
 }
 
-function MessageContent({ content, onOptionSelect }: { 
+function MessageContent({ 
+  content, 
+  onOptionSelect,
+  toolInvocations 
+}: { 
   content: string, 
-  onOptionSelect: (option: string) => void 
+  onOptionSelect: (option: string) => void,
+  toolInvocations?: ToolInvocation[]
 }) {
   const { before, options, after } = parseOptions(content);
 
@@ -292,24 +145,14 @@ function MessageContent({ content, onOptionSelect }: {
           {after}
         </ReactMarkdown>
       )}
+      {toolInvocations && <ToolDisplay toolInvocations={toolInvocations} />}
     </div>
   );
 }
 
-type TokenUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-} | null;
-
 export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [tokenUsage, setTokenUsage] = useState<TokenUsage>({
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0
-  });
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
   const {
@@ -323,16 +166,7 @@ export function ChatInterface() {
     append
   } = useChat({
     api: "/api/chat",
-    initialMessages: [INITIAL_MESSAGE],
-    onFinish: (message, { usage }) => {
-      // if (usage) {
-      //   setTokenUsage(prev => ({
-      //     promptTokens: (prev?.promptTokens || 0) + usage.promptTokens,
-      //     completionTokens: (prev?.completionTokens || 0) + usage.completionTokens,
-      //     totalTokens: (prev?.totalTokens || 0) + usage.totalTokens
-      //   }));
-      // }
-    }
+    initialMessages: [INITIAL_MESSAGE]
   });
 
   useEffect(() => {
@@ -455,9 +289,9 @@ export function ChatInterface() {
                   <>
                     <MessageContent 
                       content={message.content} 
-                      onOptionSelect={handleOptionSelect} 
+                      onOptionSelect={handleOptionSelect}
+                      toolInvocations={message.toolInvocations}
                     />
-                    {message.toolInvocations && renderToolInvocations(message.toolInvocations)}
                   </>
                 )}
               </div>
@@ -498,35 +332,7 @@ export function ChatInterface() {
               placeholder="What do you need help with?"
             />
           </form>
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
-            {error && (
-              <div className="text-red-500">
-                Error: {error.cause ? JSON.stringify(error.cause) : error.message}
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
-            <span>v{manifest.version}</span>
-            <span>•</span>
-            <a 
-              href="https://x.com/hahahahohohe" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              𝕏
-            </a>
-            <span>•</span>
-            <a 
-              href="https://buymeacoffee.com/anzorq" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              Buy me a coffee
-            </a>
-          </div>
+          <ChatFooter error={error} />
         </div>
       </div>
     </div>

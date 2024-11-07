@@ -105,7 +105,7 @@ export function Settings({ onKeySubmit }: SettingsProps) {
               placeholder="sk-ant-api..."
               value={apiKey}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
-              className="w-full"
+              className="w-full text-gray-900 dark:text-gray-100"
             />
             {error && (
               <p className="text-sm text-red-500 dark:text-red-400">
@@ -116,7 +116,7 @@ export function Settings({ onKeySubmit }: SettingsProps) {
 
           <Button
             type="submit"
-            className="border border-gray-300 dark:border-gray-700"
+            className="border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100"
             disabled={!apiKey || isValidating}
           >
             {isValidating ? 'Validating...' : 'Save'}
