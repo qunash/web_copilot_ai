@@ -3,6 +3,11 @@ window.webCopilotTools = {
     pageUpOrDown(direction: 'up' | 'down'): string {
         const amount = direction === 'up' ? -window.innerHeight : window.innerHeight;
         window.scrollBy(0, amount);
+        
+        // Show the key press indicator
+        const key = direction === 'up' ? 'PageUp' : 'PageDown';
+        keyPressIndicator.show(key);
+        
         return `Scrolled ${direction} one page`;
     },
 
@@ -71,14 +76,53 @@ window.webCopilotTools = {
 
     handleKeyPress(key: string, modifiers: string[] = []): string {
         const modifierState = {
-            ctrl: modifiers.includes('Control'),
-            alt: modifiers.includes('Alt'),
-            shift: modifiers.includes('Shift'),
-            meta: modifiers.includes('Meta')
+            ctrl: modifiers.includes('control'),
+            alt: modifiers.includes('alt'),
+            shift: modifiers.includes('shift'),
+            meta: modifiers.includes('meta')
         };
 
+        // For single character keys, convert to proper format
+        let keyCode: number;
+        let code: string;
+        
+        if (key.length === 1) {
+            // For single characters
+            keyCode = key.toUpperCase().charCodeAt(0);
+            code = `Key${key.toUpperCase()}`;
+        } else {
+            // For special keys
+            const keyCodeMap: Record<string, number> = {
+                'ArrowUp': 38,
+                'ArrowDown': 40,
+                'ArrowLeft': 37,
+                'ArrowRight': 39,
+                'Enter': 13,
+                'Escape': 27,
+                'Tab': 9,
+                'Backspace': 8,
+                'Delete': 46,
+                'Home': 36,
+                'End': 35,
+                'PageUp': 33,
+                'PageDown': 34,
+            };
+            keyCode = keyCodeMap[key] || key.charCodeAt(0);
+            code = key; // Special keys usually have the same code as key
+        }
+
+        // Special handling for Tab key
+        if (key === 'Tab') {
+            simulateTab(modifierState.shift);
+            keyPressIndicator.show(key, modifiers);
+            return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
+        }
+
         const eventOptions: KeyboardEventInit = {
-            key,
+            key: key.length === 1 ? key.toLowerCase() : key,
+            code,
+            keyCode,
+            which: keyCode,
             bubbles: true,
             cancelable: true,
             composed: true,
@@ -87,6 +131,9 @@ window.webCopilotTools = {
             shiftKey: modifierState.shift,
             metaKey: modifierState.meta
         };
+
+        // Show the key press indicator
+        keyPressIndicator.show(key, modifiers);
 
         // Dispatch events at document level
         document.dispatchEvent(new KeyboardEvent('keydown', eventOptions));
@@ -176,22 +223,23 @@ declare global {
     }
 }
 
-// Add these type definitions after the global interface declaration
+// Simplify PageInteractionMessage type
 type PageInteractionMessage = {
-    type: 'SCROLL_PAGE' | 'TYPE_TEXT' | 'PRESS_KEY' | 'GET_DEVICE_PIXEL_RATIO' | 'PROCESS_SCREENSHOT' | 'SCROLL_AT_POSITION';
-    payload?: {
-        direction?: 'up' | 'down';
-        text?: string;
-        key?: string;
-        modifiers?: string[];
-        // Add new payload properties for PROCESS_SCREENSHOT
-        dataUrl?: string;
-        zoomFactor?: number;
-        devicePixelRatio?: number;
-        x?: number;
-        y?: number;
-        deltaY?: number;
-    };
+    type: 'SCROLL_PAGE' | 'TYPE_TEXT' | 'PRESS_KEY' | 'GET_DEVICE_PIXEL_RATIO' | 'PROCESS_SCREENSHOT' | 'SCROLL_AT_POSITION' | 'SIMULATE_CLICK';
+    payload?: Partial<{
+        direction: 'up' | 'down';
+        text: string;
+        key: string;
+        modifiers: string[];
+        dataUrl: string;
+        zoomFactor: number;
+        devicePixelRatio: number;
+        x: number;
+        y: number;
+        deltaY: number;
+        coordinates: string;
+        clickType?: 'single' | 'double' | 'triple';
+    }>;
 };
 
 // Update the PageInteractionResponse type to handle all response types
@@ -226,63 +274,234 @@ async function processScreenshot(dataUrl: string, zoomFactor: number, devicePixe
 // Update the message listener to ensure consistent return type
 chrome.runtime.onMessage.addListener((
     message: PageInteractionMessage,
-    sender: chrome.runtime.MessageSender,
+    _sender: chrome.runtime.MessageSender,
     sendResponse: (response: PageInteractionResponse) => void
 ) => {
-    // console.log('Page Interactions content script received message:', message);
     try {
-        switch (message.type) {
-            case 'SCROLL_PAGE':
-                sendResponse(window.webCopilotTools.pageUpOrDown(message.payload!.direction!));
-                break;
-            case 'TYPE_TEXT':
-                sendResponse(window.webCopilotTools.typeText(message.payload!.text!));
-                break;
-            case 'PRESS_KEY':
-                sendResponse(window.webCopilotTools.handleKeyPress(
-                    message.payload!.key!,
-                    message.payload!.modifiers
-                ));
-                break;
-            case 'GET_DEVICE_PIXEL_RATIO':
-                sendResponse({
-                    success: true,
-                    result: window.devicePixelRatio
-                });
-                break;
-            case 'PROCESS_SCREENSHOT':
-                if (!message.payload?.dataUrl || 
-                    !message.payload?.zoomFactor || 
-                    !message.payload?.devicePixelRatio) {
+        const { type, payload = {} } = message;
+        
+        const handlers: Record<string, () => Promise<PageInteractionResponse> | PageInteractionResponse> = {
+            SCROLL_PAGE: () => window.webCopilotTools.pageUpOrDown(payload.direction!),
+            TYPE_TEXT: () => window.webCopilotTools.typeText(payload.text!),
+            PRESS_KEY: () => window.webCopilotTools.handleKeyPress(payload.key!, payload.modifiers),
+            GET_DEVICE_PIXEL_RATIO: () => ({ success: true, result: window.devicePixelRatio }),
+            PROCESS_SCREENSHOT: async () => {
+                if (!payload.dataUrl || !payload.zoomFactor || !payload.devicePixelRatio) {
                     throw new Error('Missing required screenshot processing parameters');
                 }
-                
-                processScreenshot(
-                    message.payload.dataUrl,
-                    message.payload.zoomFactor,
-                    message.payload.devicePixelRatio
-                )
-                    .then(processedDataUrl => {
-                        sendResponse({ success: true, result: processedDataUrl });
-                    })
-                    .catch(error => {
-                        sendResponse({ success: false, error: error.message });
-                    });
-                return true;
-            case 'SCROLL_AT_POSITION':
-                if (!message.payload?.x || !message.payload?.y || !message.payload?.deltaY) {
+                const processedDataUrl = await processScreenshot(
+                    payload.dataUrl,
+                    payload.zoomFactor,
+                    payload.devicePixelRatio
+                );
+                return { success: true, result: processedDataUrl };
+            },
+            SCROLL_AT_POSITION: () => {
+                if (!payload.x || !payload.y || !payload.deltaY) {
                     throw new Error('Missing required scroll position parameters');
                 }
-                sendResponse(window.webCopilotTools.scrollAtPosition(
-                    message.payload.x,
-                    message.payload.y,
-                    message.payload.deltaY
-                ));
-                break;
+                return window.webCopilotTools.scrollAtPosition(
+                    payload.x,
+                    payload.y,
+                    payload.deltaY
+                );
+            },
+            SIMULATE_CLICK: () => {
+                // Return a success response with an empty string result
+                // to satisfy the PageInteractionResponse type
+                return { success: true, result: '' };
+            }
+        };
+
+        const handler = handlers[type];
+        if (!handler) {
+            throw new Error(`Unknown message type: ${type}`);
         }
+
+        const result = handler();
+        if (result instanceof Promise) {
+            result.then(sendResponse).catch(error => {
+                sendResponse({ error: error.message });
+            });
+            return true;
+        }
+        
+        sendResponse(result);
+        return true;
     } catch (error) {
         console.error('Error handling message:', error);
         sendResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
+        return true;
     }
-    return true;
 });
+
+// Add cleanup listeners
+window.addEventListener('pagehide', () => keyPressIndicator.cleanup());
+window.addEventListener('beforeunload', () => keyPressIndicator.cleanup());
+
+class KeyPressIndicator {
+    private element: HTMLDivElement | null = null;
+    private hideTimeout: number | null = null;
+
+    constructor() {
+        if (document.body) {
+            this.init();
+        } else {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        }
+    }
+
+    private init() {
+        if (this.element) return;
+
+        this.element = document.createElement('div');
+        this.element.id = 'web-copilot-key-indicator';
+        this.setupStyles();
+        document.body.appendChild(this.element);
+    }
+
+    private setupStyles() {
+        if (!this.element) return;
+        
+        this.element.style.cssText = `
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            padding: 10px 16px;
+            background-color: rgba(236, 253, 245, 0.9); /* emerald-50 with transparency */
+            color: rgb(6, 95, 70); /* emerald-800 */
+            border-radius: 10px;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 15px;
+            line-height: 1;
+            font-weight: 500;
+            letter-spacing: -0.01em;
+            z-index: 2147483647;
+            opacity: 0;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+            pointer-events: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            justify-content: center;
+            border: 1px solid rgb(167, 243, 208); /* emerald-200 */
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        `;
+
+        const darkModeStyles = document.createElement('style');
+        darkModeStyles.textContent = `
+            @media (prefers-color-scheme: dark) {
+                #web-copilot-key-indicator {
+                    color: rgb(167, 243, 208); /* emerald-200 */
+                    border-color: rgba(6, 78, 59, 0.5); /* emerald-900 with transparency */
+                    background-color: rgba(6, 78, 59, 0.8); /* emerald-900 with transparency */
+                    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.2);
+                }
+            }
+        `;
+        document.head.appendChild(darkModeStyles);
+    }
+
+    show(key: string, modifiers: string[] = []) {
+        this.init();
+        if (!this.element) return;
+
+        if (this.hideTimeout !== null) {
+            window.clearTimeout(this.hideTimeout);
+        }
+
+        this.element.textContent = this.formatKeyDisplay(key, modifiers);
+        this.element.style.opacity = '1';
+        this.element.style.transform = 'translateY(0)';
+
+        this.hideTimeout = window.setTimeout(() => this.hide(), 1000);
+    }
+
+    private formatKeyDisplay(key: string, modifiers: string[]): string {
+        const modifierSymbols: Record<string, string> = {
+            'control': '⌃',  // Control
+            'ctrl': '⌃',  // Control
+            'alt': '⌥',      // Option
+            'shift': '⇧',    // Shift
+            'meta': '⌘',     // Command
+        };
+
+        const keySymbols: Record<string, string> = {
+            'ArrowUp': '↑',
+            'ArrowDown': '↓',
+            'ArrowLeft': '←',
+            'ArrowRight': '→',
+            'Enter': '↵',
+            'Escape': 'esc',
+            'Backspace': '⌫',
+            'Delete': '⌦',
+            'Home': 'Home',
+            'End': 'End',
+            'PageUp': 'PageUp',
+            'PageDown': 'PageDown',
+            'Tab': '⇥',
+            ' ': 'space',
+        };
+
+        const formattedModifiers = modifiers
+            .map(mod => modifierSymbols[mod.toLowerCase()] || mod)
+            .join('');
+        const formattedKey = keySymbols[key] || key.toUpperCase();
+
+        return formattedModifiers ? `${formattedModifiers}+${formattedKey}` : formattedKey;
+    }
+
+    hide() {
+        if (!this.element) return;
+        this.element.style.opacity = '0';
+        this.element.style.transform = 'translateY(10px)';
+        this.hideTimeout = null;
+    }
+
+    cleanup() {
+        if (this.element?.parentNode) {
+            this.element.parentNode.removeChild(this.element);
+        }
+        if (this.hideTimeout !== null) {
+            window.clearTimeout(this.hideTimeout);
+        }
+        this.element = null;
+    }
+}
+
+// Create a global instance
+const keyPressIndicator = new KeyPressIndicator();
+
+function simulateTab(shiftKey = false): void {
+    // Get all focusable elements and cast to HTMLElement[]
+    const focusable = Array.from(document.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )).filter(el => {
+        // Now TypeScript knows el is HTMLElement
+        return el.offsetParent !== null;
+    });
+    
+    // Get currently focused element
+    const currentElement = document.activeElement as HTMLElement | null;
+    let currentIndex = currentElement ? focusable.indexOf(currentElement) : -1;
+    
+    // Calculate next index
+    let nextIndex;
+    if (shiftKey) {
+        // Shift+Tab moves backwards
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : focusable.length - 1;
+    } else {
+        // Tab moves forwards
+        nextIndex = currentIndex < focusable.length - 1 ? currentIndex + 1 : 0;
+    }
+    
+    // Focus next element
+    const nextElement = focusable[nextIndex];
+    if (nextElement) {
+        nextElement.focus();
+        nextElement.dispatchEvent(new Event('focus', { bubbles: true }));
+    }
+}
