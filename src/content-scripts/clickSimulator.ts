@@ -141,7 +141,7 @@ async function simulateClick(x: number, y: number, clickType: 'single' | 'double
                 }
 
                 element.dispatchEvent(event);
-                console.log(`Dispatched ${type} at (${x}, ${y}) on`, element);
+                // console.log(`Dispatched ${type} at (${x}, ${y}) on`, element);
             }
         };
 
@@ -182,7 +182,7 @@ async function simulateClick(x: number, y: number, clickType: 'single' | 'double
         // Attempt to focus on the element after events
         if (element instanceof HTMLElement) {
             element.focus();
-            console.log(`Focused on element at (${x}, ${y})`);
+            // console.log(`Focused on element at (${x}, ${y})`);
         }
 
         clickIndicator.hide();
