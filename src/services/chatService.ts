@@ -27,10 +27,11 @@ const SYSTEM_PROMPT = `<SYSTEM_CAPABILITY>
 
 * When handling requests:
   1. Analyze the user's goal
-  2. Identify relevant web services/tools that can help
-  3. Break down the solution into concrete browser actions
-  4. Execute the actions using your tools
-  5. Verify and report results
+  2. If it's the begginning of a conversation and the user's request seems ambiguous, take a screenshot of the current page for context
+  3. Identify relevant web services/tools that can help
+  4. Break down the solution into concrete browser actions
+  5. Execute the actions using your tools
+  6. Verify and report results
 
 * When presenting choices to the user:
   - Present them as numbered options using the <option> tags
