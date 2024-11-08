@@ -4,7 +4,7 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon, RefreshCcw } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -163,7 +163,8 @@ export function ChatInterface() {
     stop,
     isLoading,
     error,
-    append
+    append,
+    setMessages,
   } = useChat({
     api: "/api/chat",
     initialMessages: [INITIAL_MESSAGE]
@@ -239,6 +240,15 @@ export function ChatInterface() {
     setHasApiKey(false);
   };
 
+  const handleNewChat = () => {
+    stop();
+    setMessages([INITIAL_MESSAGE]);
+    if (textareaRef.current) {
+      textareaRef.current.value = '';
+      textareaRef.current.focus();
+    }
+  };
+
   if (hasApiKey === null) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
@@ -258,16 +268,28 @@ export function ChatInterface() {
           />
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Web Copilot AI</h1>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleSettingsClick}
-          className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
-          title="Settings"
-        >
-          <SettingsIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-          <span className="sr-only">Settings</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleNewChat}
+            className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+            title="New Chat"
+          >
+            <RefreshCcw className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+            <span className="sr-only">New Chat</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSettingsClick}
+            className="hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+            title="Settings"
+          >
+            <SettingsIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+            <span className="sr-only">Settings</span>
+          </Button>
+        </div>
       </div>
       <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4 overflow-hidden">
         <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
