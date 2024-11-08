@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Web Copilot AI",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-powered browser assistant that performs actions based on natural language instructions",
   "action": {
     "default_title": "Click to open Web Copilot AI side panel",
