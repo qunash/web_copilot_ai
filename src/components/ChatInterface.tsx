@@ -4,7 +4,7 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon, RefreshCcw } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon, RefreshCcw, CircleXIcon } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { ClickableOption } from './ClickableOption';
 import { Settings } from './Settings';
 import { ToolDisplay } from './ToolCall';
 import { ChatFooter } from './ChatFooter';
+import { RatingPrompt } from './RatingPrompt';
 
 const INITIAL_MESSAGE = {
   id: 'initial-message',
@@ -154,6 +155,7 @@ export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
 
   const {
     messages,
@@ -171,8 +173,21 @@ export function ChatInterface() {
   });
 
   useEffect(() => {
-    checkApiKey();
-  }, []);
+    const init = async () => {
+      await checkApiKey();
+      
+      // Increment conversation count on component mount
+      const { conversationCount = 0, shouldShowRating = true } = await chrome.storage.local.get(['conversationCount', 'shouldShowRating']);
+      await chrome.storage.local.set({ conversationCount: conversationCount + 1 });
+      
+      // Show rating prompt if threshold reached and shouldShowRating is true
+      if (conversationCount + 1 >= 5 && shouldShowRating) {
+        setShowRatingPrompt(true);
+      }
+    };
+
+    init();
+  }, []); // Empty dependency array means this runs once when component mounts
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -205,6 +220,15 @@ export function ChatInterface() {
     return () => document.removeEventListener('keydown', handleEscKey);
   }, [isLoading, stop]);
 
+  useEffect(() => {
+    const checkConversationCount = async () => {
+      const { conversationCount = 0, shouldShowRating = true } = await chrome.storage.local.get(['conversationCount', 'shouldShowRating']);
+      setShowRatingPrompt(conversationCount >= 5 && shouldShowRating);
+    };
+
+    checkConversationCount();
+  }, []);
+
   const checkApiKey = async () => {
     const { anthropic_api_key } = await chrome.storage.local.get('anthropic_api_key');
     setHasApiKey(!!anthropic_api_key);
@@ -215,6 +239,7 @@ export function ChatInterface() {
       e.preventDefault();
       if (!isLoading && chatInput.trim()) {
         handleChatSubmit(e as any);
+        setShowRatingPrompt(false); // Hide rating prompt when user sends a message
       }
     }
   };
@@ -225,6 +250,7 @@ export function ChatInterface() {
       stop();
     } else if (chatInput.trim()) {
       handleChatSubmit(e as any);
+      setShowRatingPrompt(false); // Hide rating prompt when user sends a message
     }
   };
 
@@ -234,19 +260,40 @@ export function ChatInterface() {
       content: option,
       id: Date.now().toString()
     });
+    setShowRatingPrompt(false); // Hide rating prompt when user selects an option
   }
 
   const handleSettingsClick = () => {
     setHasApiKey(false);
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     stop();
     setMessages([INITIAL_MESSAGE]);
     if (textareaRef.current) {
       textareaRef.current.value = '';
       textareaRef.current.focus();
     }
+
+    // Increment conversation count in storage
+    const { conversationCount = 0, shouldShowRating = true } = await chrome.storage.local.get(['conversationCount', 'shouldShowRating']);
+    await chrome.storage.local.set({ conversationCount: conversationCount + 1 });
+    
+    // Show rating prompt if threshold reached and shouldShowRating is true
+    if (conversationCount + 1 >= 5 && shouldShowRating) {
+      setShowRatingPrompt(true);
+    }
+  };
+
+  const handleRatingLinkClick = async () => {
+    await chrome.storage.local.set({ shouldShowRating: false });
+    setShowRatingPrompt(false);
+  };
+
+  const handleRatingClose = async () => {
+    await chrome.storage.local.set({ shouldShowRating: false });
+    setShowRatingPrompt(false);
+    textareaRef.current?.focus();
   };
 
   if (hasApiKey === null) {
@@ -323,6 +370,12 @@ export function ChatInterface() {
         </div>
         
         <div>
+          {showRatingPrompt && (
+            <RatingPrompt 
+              onLinkClick={handleRatingLinkClick} 
+              onClose={handleRatingClose}
+            />
+          )}
           <form onSubmit={handleChatSubmit} className="relative">
             <Button
               type="submit"
