@@ -65,24 +65,15 @@ async function buildJavaScript(isProd = false) {
     try {
         const entrypoints = getEntryPoints();
 
-        // Add content scripts explicitly
-        const contentScripts = [
-            join(srcDir, 'content-scripts/clickSimulator.ts'),
-            join(srcDir, 'content-scripts/pageInteractions.ts')
-        ];
-
-        contentScripts.forEach(script => {
-            if (!entrypoints.includes(script)) {
-                entrypoints.push(script);
-            }
-        });
+        // Add single content script
+        entrypoints.push(join(srcDir, 'content-scripts/content_script.ts'));
 
         console.log("Building entry points:", entrypoints);
 
         const result = await Bun.build({
             entrypoints,
             outdir: distDir,
-            minify: isProd, // Enable minification for production
+            minify: isProd,
             target: 'browser',
         });
 

@@ -1,17 +1,83 @@
-// Export functions that will be called from the extension
-window.webCopilotTools = {
-    pageUpOrDown(direction: 'up' | 'down'): string {
+export class PageInteractions {
+    private keyPressIndicator: KeyPressIndicator;
+
+    constructor() {
+        this.keyPressIndicator = new KeyPressIndicator();
+    }
+
+    public handleMessage(type: string, payload: any, sendResponse: (response: any) => void): boolean {
+        try {
+            const handlers: Record<string, () => Promise<PageInteractionResponse> | PageInteractionResponse> = {
+                SCROLL_PAGE: () => this.pageUpOrDown(payload.direction),
+                TYPE_TEXT: () => this.typeText(payload.text),
+                PRESS_KEY: () => this.handleKeyPress(payload.key, payload.modifiers),
+                GET_DEVICE_PIXEL_RATIO: () => ({ success: true, result: window.devicePixelRatio }),
+                PROCESS_SCREENSHOT: async () => {
+                    if (!payload.dataUrl || !payload.zoomFactor || !payload.devicePixelRatio) {
+                        throw new Error('Missing required screenshot processing parameters');
+                    }
+                    const processedDataUrl = await this.processScreenshot(
+                        payload.dataUrl,
+                        payload.zoomFactor,
+                        payload.devicePixelRatio
+                    );
+                    return { success: true, result: processedDataUrl };
+                },
+                SCROLL_AT_POSITION: () => {
+                    if (!payload.x || !payload.y || !payload.deltaY) {
+                        throw new Error('Missing required scroll position parameters');
+                    }
+                    return this.scrollAtPosition(
+                        payload.x,
+                        payload.y,
+                        payload.deltaY
+                    );
+                }
+            };
+
+            const handler = handlers[type];
+            if (!handler) {
+                throw new Error(`Unknown message type: ${type}`);
+            }
+
+            const result = handler();
+            if (result instanceof Promise) {
+                result.then(sendResponse).catch(error => {
+                    sendResponse({ error: error.message });
+                });
+                return true;
+            }
+            
+            sendResponse(result);
+            return true;
+        } catch (error) {
+            console.error('Error handling message:', error);
+            sendResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
+            return true;
+        }
+    }
+
+    public getPublicTools() {
+        return {
+            pageUpOrDown: this.pageUpOrDown.bind(this),
+            typeText: this.typeText.bind(this),
+            handleKeyPress: this.handleKeyPress.bind(this),
+            scrollAtPosition: this.scrollAtPosition.bind(this)
+        };
+    }
+
+    private pageUpOrDown(direction: 'up' | 'down'): string {
         const amount = direction === 'up' ? -window.innerHeight : window.innerHeight;
         window.scrollBy(0, amount);
         
         // Show the key press indicator
         const key = direction === 'up' ? 'PageUp' : 'PageDown';
-        keyPressIndicator.show(key);
+        this.keyPressIndicator.show(key);
         
         return `Scrolled ${direction} one page`;
-    },
+    }
 
-    typeText(text: string): string {
+    private typeText(text: string): string {
         const activeElement = document.activeElement as HTMLElement;
         if (!activeElement) {
             return 'No active element found';
@@ -72,9 +138,9 @@ window.webCopilotTools = {
         }
 
         return 'No suitable input element found';
-    },
+    }
 
-    handleKeyPress(key: string, modifiers: string[] = []): string {
+    private handleKeyPress(key: string, modifiers: string[] = []): string {
         const modifierState = {
             ctrl: modifiers.includes('control'),
             alt: modifiers.includes('alt'),
@@ -113,8 +179,8 @@ window.webCopilotTools = {
 
         // Special handling for Tab key
         if (key === 'Tab') {
-            simulateTab(modifierState.shift);
-            keyPressIndicator.show(key, modifiers);
+            this.simulateTab(modifierState.shift);
+            this.keyPressIndicator.show(key, modifiers);
             return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
         }
 
@@ -133,7 +199,7 @@ window.webCopilotTools = {
         };
 
         // Show the key press indicator
-        keyPressIndicator.show(key, modifiers);
+        this.keyPressIndicator.show(key, modifiers);
 
         // Dispatch events at document level
         document.dispatchEvent(new KeyboardEvent('keydown', eventOptions));
@@ -141,9 +207,9 @@ window.webCopilotTools = {
         document.dispatchEvent(new KeyboardEvent('keyup', eventOptions));
 
         return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
-    },
+    }
 
-    scrollAtPosition(x: number, y: number, deltaY: number): string {
+    private scrollAtPosition(x: number, y: number, deltaY: number): string {
         // Find the element at the specified position
         const element = document.elementFromPoint(x, y);
         if (!element) {
@@ -190,11 +256,11 @@ window.webCopilotTools = {
             const wheelEvent = new WheelEvent('wheel', {
                 bubbles: true,
                 cancelable: true,
-                composed: true,  // Allows the event to cross shadow DOM boundaries
+                composed: true,
                 clientX: x,
                 clientY: y,
                 deltaY: deltaY,
-                deltaMode: 0,    // 0 = pixel mode
+                deltaMode: 0,
                 view: window
             });
             
@@ -208,136 +274,52 @@ window.webCopilotTools = {
         }
 
         return `Scrolled at position (${x}, ${y}) with delta ${deltaY}`;
-    },
-};
-
-// Add type declaration for the global object
-declare global {
-    interface Window {
-        webCopilotTools: {
-            pageUpOrDown(direction: 'up' | 'down'): string;
-            typeText(text: string): string;
-            handleKeyPress(key: string, modifiers?: string[]): string;
-            scrollAtPosition(x: number, y: number, deltaY: number): string;
-        };
-    }
-}
-
-// Simplify PageInteractionMessage type
-type PageInteractionMessage = {
-    type: 'SCROLL_PAGE' | 'TYPE_TEXT' | 'PRESS_KEY' | 'GET_DEVICE_PIXEL_RATIO' | 'PROCESS_SCREENSHOT' | 'SCROLL_AT_POSITION' | 'SIMULATE_CLICK';
-    payload?: Partial<{
-        direction: 'up' | 'down';
-        text: string;
-        key: string;
-        modifiers: string[];
-        dataUrl: string;
-        zoomFactor: number;
-        devicePixelRatio: number;
-        x: number;
-        y: number;
-        deltaY: number;
-        coordinates: string;
-        clickType?: 'single' | 'double' | 'triple';
-    }>;
-};
-
-// Update the PageInteractionResponse type to handle all response types
-type PageInteractionResponse = 
-    | string 
-    | { error: string } 
-    | { success: boolean; result: number | string }; // Allow both number and string results
-
-// Add this function to handle image processing
-async function processScreenshot(dataUrl: string, zoomFactor: number, devicePixelRatio: number): Promise<string> {
-    const img = new Image();
-    await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = dataUrl;
-    });
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        throw new Error('Failed to get canvas context');
     }
 
-    const scaleFactor = zoomFactor * devicePixelRatio;
-    canvas.width = img.width / scaleFactor;
-    canvas.height = img.height / scaleFactor;
+    private async processScreenshot(dataUrl: string, zoomFactor: number, devicePixelRatio: number): Promise<string> {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = dataUrl;
+        });
 
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/webp');
-}
-
-// Update the message listener to ensure consistent return type
-chrome.runtime.onMessage.addListener((
-    message: PageInteractionMessage,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (response: PageInteractionResponse) => void
-) => {
-    try {
-        const { type, payload = {} } = message;
-        
-        const handlers: Record<string, () => Promise<PageInteractionResponse> | PageInteractionResponse> = {
-            SCROLL_PAGE: () => window.webCopilotTools.pageUpOrDown(payload.direction!),
-            TYPE_TEXT: () => window.webCopilotTools.typeText(payload.text!),
-            PRESS_KEY: () => window.webCopilotTools.handleKeyPress(payload.key!, payload.modifiers),
-            GET_DEVICE_PIXEL_RATIO: () => ({ success: true, result: window.devicePixelRatio }),
-            PROCESS_SCREENSHOT: async () => {
-                if (!payload.dataUrl || !payload.zoomFactor || !payload.devicePixelRatio) {
-                    throw new Error('Missing required screenshot processing parameters');
-                }
-                const processedDataUrl = await processScreenshot(
-                    payload.dataUrl,
-                    payload.zoomFactor,
-                    payload.devicePixelRatio
-                );
-                return { success: true, result: processedDataUrl };
-            },
-            SCROLL_AT_POSITION: () => {
-                if (!payload.x || !payload.y || !payload.deltaY) {
-                    throw new Error('Missing required scroll position parameters');
-                }
-                return window.webCopilotTools.scrollAtPosition(
-                    payload.x,
-                    payload.y,
-                    payload.deltaY
-                );
-            },
-            SIMULATE_CLICK: () => {
-                // Return a success response with an empty string result
-                // to satisfy the PageInteractionResponse type
-                return { success: true, result: '' };
-            }
-        };
-
-        const handler = handlers[type];
-        if (!handler) {
-            throw new Error(`Unknown message type: ${type}`);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            throw new Error('Failed to get canvas context');
         }
 
-        const result = handler();
-        if (result instanceof Promise) {
-            result.then(sendResponse).catch(error => {
-                sendResponse({ error: error.message });
-            });
-            return true;
+        const scaleFactor = zoomFactor * devicePixelRatio;
+        canvas.width = img.width / scaleFactor;
+        canvas.height = img.height / scaleFactor;
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/webp');
+    }
+
+    private simulateTab(shiftKey = false): void {
+        const focusable = Array.from(document.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )).filter(el => el.offsetParent !== null);
+        
+        const currentElement = document.activeElement as HTMLElement | null;
+        let currentIndex = currentElement ? focusable.indexOf(currentElement) : -1;
+        
+        let nextIndex;
+        if (shiftKey) {
+            nextIndex = currentIndex > 0 ? currentIndex - 1 : focusable.length - 1;
+        } else {
+            nextIndex = currentIndex < focusable.length - 1 ? currentIndex + 1 : 0;
         }
         
-        sendResponse(result);
-        return true;
-    } catch (error) {
-        console.error('Error handling message:', error);
-        sendResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
-        return true;
+        const nextElement = focusable[nextIndex];
+        if (nextElement) {
+            nextElement.focus();
+            nextElement.dispatchEvent(new Event('focus', { bubbles: true }));
+        }
     }
-});
-
-// Add cleanup listeners
-window.addEventListener('pagehide', () => keyPressIndicator.cleanup());
-window.addEventListener('beforeunload', () => keyPressIndicator.cleanup());
+}
 
 class KeyPressIndicator {
     private element: HTMLDivElement | null = null;
@@ -368,8 +350,8 @@ class KeyPressIndicator {
             right: 20px;
             bottom: 20px;
             padding: 10px 16px;
-            background-color: rgba(236, 253, 245, 0.9); /* emerald-50 with transparency */
-            color: rgb(6, 95, 70); /* emerald-800 */
+            background-color: rgba(236, 253, 245, 0.9);
+            color: rgb(6, 95, 70);
             border-radius: 10px;
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 15px;
@@ -385,7 +367,7 @@ class KeyPressIndicator {
             align-items: center;
             gap: 4px;
             justify-content: center;
-            border: 1px solid rgb(167, 243, 208); /* emerald-200 */
+            border: 1px solid rgb(167, 243, 208);
             box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
@@ -395,9 +377,9 @@ class KeyPressIndicator {
         darkModeStyles.textContent = `
             @media (prefers-color-scheme: dark) {
                 #web-copilot-key-indicator {
-                    color: rgb(167, 243, 208); /* emerald-200 */
-                    border-color: rgba(6, 78, 59, 0.5); /* emerald-900 with transparency */
-                    background-color: rgba(6, 78, 59, 0.8); /* emerald-900 with transparency */
+                    color: rgb(167, 243, 208);
+                    border-color: rgba(6, 78, 59, 0.5);
+                    background-color: rgba(6, 78, 59, 0.8);
                     box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.2);
                 }
             }
@@ -422,11 +404,11 @@ class KeyPressIndicator {
 
     private formatKeyDisplay(key: string, modifiers: string[]): string {
         const modifierSymbols: Record<string, string> = {
-            'control': '⌃',  // Control
-            'ctrl': '⌃',  // Control
-            'alt': '⌥',      // Option
-            'shift': '⇧',    // Shift
-            'meta': '⌘',     // Command
+            'control': '⌃',
+            'ctrl': '⌃',
+            'alt': '⌥',
+            'shift': '⇧',
+            'meta': '⌘',
         };
 
         const keySymbols: Record<string, string> = {
@@ -454,7 +436,7 @@ class KeyPressIndicator {
         return formattedModifiers ? `${formattedModifiers}+${formattedKey}` : formattedKey;
     }
 
-    hide() {
+    private hide() {
         if (!this.element) return;
         this.element.style.opacity = '0';
         this.element.style.transform = 'translateY(10px)';
@@ -472,36 +454,8 @@ class KeyPressIndicator {
     }
 }
 
-// Create a global instance
-const keyPressIndicator = new KeyPressIndicator();
-
-function simulateTab(shiftKey = false): void {
-    // Get all focusable elements and cast to HTMLElement[]
-    const focusable = Array.from(document.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )).filter(el => {
-        // Now TypeScript knows el is HTMLElement
-        return el.offsetParent !== null;
-    });
-    
-    // Get currently focused element
-    const currentElement = document.activeElement as HTMLElement | null;
-    let currentIndex = currentElement ? focusable.indexOf(currentElement) : -1;
-    
-    // Calculate next index
-    let nextIndex;
-    if (shiftKey) {
-        // Shift+Tab moves backwards
-        nextIndex = currentIndex > 0 ? currentIndex - 1 : focusable.length - 1;
-    } else {
-        // Tab moves forwards
-        nextIndex = currentIndex < focusable.length - 1 ? currentIndex + 1 : 0;
-    }
-    
-    // Focus next element
-    const nextElement = focusable[nextIndex];
-    if (nextElement) {
-        nextElement.focus();
-        nextElement.dispatchEvent(new Event('focus', { bubbles: true }));
-    }
-}
+// Types
+type PageInteractionResponse = 
+    | string 
+    | { error: string } 
+    | { success: boolean; result: number | string };
