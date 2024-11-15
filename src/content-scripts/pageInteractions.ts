@@ -148,6 +148,66 @@ export class PageInteractions {
             meta: modifiers.includes('meta')
         };
 
+        // Special handling for Enter key
+        if (key === 'Enter') {
+            const activeElement = document.activeElement as HTMLElement;
+            if (activeElement) {
+                
+                // If the element is inside a form, handle form submission
+                const form = activeElement.closest('form');
+                if (form) {
+                    if (activeElement instanceof HTMLInputElement) {
+                        // Try to find and click an associated submit button
+                        const submitButton = form.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement;
+                        if (submitButton) {
+                            submitButton.click();
+                            this.keyPressIndicator.show(key, modifiers);
+                            return `Pressed key: ${key} and clicked submit button`;
+                        }
+                    }
+
+                    // Dispatch submit event
+                    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                    form.dispatchEvent(submitEvent);
+                    
+                    // If the event wasn't prevented, actually submit the form
+                    if (!submitEvent.defaultPrevented) {
+                        form.submit();
+                    }
+                    
+                    this.keyPressIndicator.show(key, modifiers);
+                    return `Pressed key: ${key} and submitted form`;
+                }
+                
+                // Handle non-form search inputs
+                if (activeElement instanceof HTMLInputElement) {
+                    // Try multiple approaches for search inputs
+                    
+                    // // 1. Look for and click a nearby search button
+                    // const searchButton = this.findSearchButton(activeElement);
+                    // if (searchButton) {
+                    //     searchButton.click();
+                    //     this.keyPressIndicator.show(key, modifiers);
+                    //     return `Pressed key: ${key} and clicked search button`;
+                    // }
+
+                    // 2. Dispatch common search-related events
+                    const events = [
+                        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+                        new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }),
+                        new InputEvent('input', { bubbles: true }),
+                        new Event('change', { bubbles: true }),
+                        new Event('search', { bubbles: true }),
+                        new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })
+                    ];
+
+                    events.forEach(event => {
+                        activeElement.dispatchEvent(event);
+                    });
+                }
+            }
+        }
+
         // For single character keys, convert to proper format
         let keyCode: number;
         let code: string;
@@ -207,6 +267,52 @@ export class PageInteractions {
         document.dispatchEvent(new KeyboardEvent('keyup', eventOptions));
 
         return `Pressed key: ${key}${modifiers.length ? ' with modifiers: ' + modifiers.join('+') : ''}`;
+    }
+
+    private findSearchButton(input: HTMLElement): HTMLElement | null {
+        // Look for buttons in common search button locations
+        
+        // 1. Next sibling
+        let searchButton = input.nextElementSibling as HTMLElement;
+        if (searchButton?.tagName === 'BUTTON' || 
+            (searchButton?.getAttribute('role') === 'button')) {
+            return searchButton;
+        }
+
+        // 2. Parent's children
+        const parent = input.parentElement;
+        if (parent) {
+            // Look for buttons or elements with button role
+            const buttons = Array.from(parent.querySelectorAll('button, [role="button"]'));
+            searchButton = buttons.find(button => {
+                const rect = button.getBoundingClientRect();
+                // Only consider visible buttons
+                return rect.width > 0 && rect.height > 0;
+            }) as HTMLElement;
+            
+            if (searchButton) return searchButton;
+        }
+
+        // 3. Look for common search button patterns in nearby elements
+        const searchButtonSelectors = [
+            'button[type="submit"]',
+            'button[aria-label*="search" i]',
+            'button[title*="search" i]',
+            '[role="button"][aria-label*="search" i]',
+            'button.search-button',
+            'button.search',
+            'button svg[aria-label*="search" i]'
+        ];
+
+        const root = input.closest('[role="search"]') || input.parentElement?.parentElement;
+        if (root) {
+            for (const selector of searchButtonSelectors) {
+                const button = root.querySelector(selector) as HTMLElement;
+                if (button) return button;
+            }
+        }
+
+        return null;
     }
 
     private scrollAtPosition(x: number, y: number, deltaY: number): string {
