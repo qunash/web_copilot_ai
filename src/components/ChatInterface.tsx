@@ -4,7 +4,7 @@ import { useChat } from 'ai/react';
 import type { ToolInvocation } from '@ai-sdk/ui-utils';
 import { useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ArrowUp, Square, Settings as SettingsIcon, RefreshCcw, CircleXIcon } from 'lucide-react';
+import { ArrowUp, Square, Settings as SettingsIcon, RefreshCcw, ChevronDown } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -154,8 +154,11 @@ function MessageContent({
 export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isUserScrolled, setIsUserScrolled] = useState(false);
 
   const {
     messages,
@@ -190,8 +193,10 @@ export function ChatInterface() {
   }, []); // Empty dependency array means this runs once when component mounts
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!isUserScrolled) {
+      scrollToBottom();
+    }
+  }, [messages, isUserScrolled]);
 
   useEffect(() => {
     if (error) {
@@ -239,7 +244,9 @@ export function ChatInterface() {
       e.preventDefault();
       if (!isLoading && chatInput.trim()) {
         handleChatSubmit(e as any);
-        setShowRatingPrompt(false); // Hide rating prompt when user sends a message
+        setShowRatingPrompt(false);
+        setIsUserScrolled(false);
+        scrollToBottom();
       }
     }
   };
@@ -250,7 +257,9 @@ export function ChatInterface() {
       stop();
     } else if (chatInput.trim()) {
       handleChatSubmit(e as any);
-      setShowRatingPrompt(false); // Hide rating prompt when user sends a message
+      setShowRatingPrompt(false);
+      setIsUserScrolled(false);
+      scrollToBottom();
     }
   };
 
@@ -260,7 +269,9 @@ export function ChatInterface() {
       content: option,
       id: Date.now().toString()
     });
-    setShowRatingPrompt(false); // Hide rating prompt when user selects an option
+    setShowRatingPrompt(false);
+    setIsUserScrolled(false);
+    scrollToBottom();
   }
 
   const handleSettingsClick = () => {
@@ -294,6 +305,30 @@ export function ChatInterface() {
     await chrome.storage.local.set({ shouldShowRating: false });
     setShowRatingPrompt(false);
     textareaRef.current?.focus();
+  };
+
+  const handleWheel = (e: WheelEvent) => {
+    if (e.deltaY < 0) { // Scrolling up
+      setIsUserScrolled(true);
+    }
+  };
+
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 10;
+    
+    if (isAtBottom) {
+      setIsUserScrolled(false);
+    }
+    
+    setShowScrollButton(!isAtBottom);
+  };
+
+  const scrollToBottom = () => {
+    messagesContainerRef.current?.scrollTo({ top: messagesContainerRef.current.scrollHeight });
+    setIsUserScrolled(false);
   };
 
   if (hasApiKey === null) {
@@ -339,7 +374,12 @@ export function ChatInterface() {
         </div>
       </div>
       <div className="flex flex-col h-screen max-w-4xl mx-auto p-2 sm:p-4 overflow-hidden">
-        <div className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          onWheel={(e) => handleWheel(e.nativeEvent)}
+          className="flex-1 overflow-y-auto mb-2 p-4 space-y-6 bg-white dark:bg-gray-900 shadow-inner relative"
+        >
           {messages.map((message) => (
             <div 
               key={message.id} 
@@ -367,6 +407,18 @@ export function ChatInterface() {
             </div>
           ))}
           <div ref={messagesEndRef} />
+          
+          {showScrollButton && (
+            <Button
+              onClick={scrollToBottom}
+              size="icon"
+              className="fixed bottom-32 right-6 rounded-full shadow-lg bg-gray-100/90 dark:bg-gray-800/90 hover:bg-gray-200 dark:hover:bg-gray-700/90 text-gray-600 dark:text-gray-300 w-8 h-8 border border-gray-300 dark:border-gray-600"
+              title="Scroll to bottom"
+            >
+              <ChevronDown className="h-4 w-4" />
+              <span className="sr-only">Scroll to bottom</span>
+            </Button>
+          )}
         </div>
         
         <div>
