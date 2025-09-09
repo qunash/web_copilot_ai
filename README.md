@@ -1,4 +1,8 @@
-![Web Copilot AI Icon](src/icons/icon128.png)
+<div align="center">
+  <a href="#">
+    <img src="src/icons/icon128.png" alt="Web Copilot AI Icon">
+  </a>
+</div>
 
 <div align="center">
 
@@ -40,7 +44,9 @@ Press **`⌘ + .`** or **`Ctrl + .`** to open the side panel.
 
 <br>
 <h1></h1>
+
 ### Manual installation
+
 1. **Prereqs**: Bun v1+, Chrome.
 2. **Install**:
 ```bash
